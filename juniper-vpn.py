@@ -8,7 +8,6 @@ import getpass
 import sys
 import os
 import ssl
-import errno
 import argparse
 import atexit
 import signal
@@ -219,11 +218,9 @@ class juniper_vpn(object):
         ret = p.returncode
 
         # Openconnect specific
-        if ret == -errno.EPERM:
+        if ret == 2:
             self.cj.clear(self.args.host, '/', 'DSID')
             self.r = self.br.open(self.r.geturl())
-        elif ret > 0:
-            sys.exit(ret)
 
 def cleanup():
     os.killpg(0, signal.SIGTERM)
