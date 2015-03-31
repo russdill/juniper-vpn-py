@@ -21,6 +21,8 @@ import tncc
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
+connection_process = None
+
 """
 OATH code from https://github.com/bdauvergne/python-oath
 Copyright 2010, Benjamin Dauvergne
@@ -208,14 +210,14 @@ class juniper_vpn(object):
             arg = arg.replace('%DSID%', dsid).replace('%HOST%', self.args.host)
             action.append(arg)
 
-        p = subprocess.Popen(action, stdin=subprocess.PIPE)
+        connection_process = subprocess.Popen(action, stdin=subprocess.PIPE)
         if args.stdin is not None:
             stdin = args.stdin.replace('%DSID%', dsid)
             stdin = stdin.replace('%HOST%', self.args.host)
-            p.communicate(input = stdin)
+            connection_process.communicate(input = stdin)
         else:
-            ret = p.wait()
-        ret = p.returncode
+            ret = connection_process.wait()
+        ret = connection_process.returncode
 
         # Openconnect specific
         if ret == 2:
@@ -223,7 +225,8 @@ class juniper_vpn(object):
             self.r = self.br.open(self.r.geturl())
 
 def cleanup():
-    os.killpg(0, signal.SIGTERM)
+    if connection_process:
+        connection_process.send_signal(signal.SIGINT)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(conflict_handler='resolve')
@@ -269,5 +272,8 @@ if __name__ == "__main__":
 
     atexit.register(cleanup)
     jvpn = juniper_vpn(args)
-    jvpn.run()
+    try:
+        jvpn.run()
+    except KeyboardInterrupt:
+        sys.exit(1)
 
