@@ -169,6 +169,18 @@ class juniper_vpn(object):
         self.br.select_form(nr=0)
         self.br.form['username'] = self.args.username
         self.br.form['password'] = self.args.password
+
+        # Look for secondary password field on the initial login
+        # form. If found, prompt for a secondary password. This is
+        # found in some configurations using two-factor authentication.
+        try:
+            secondary = self.br.form.find_control(type='password', nr=1)
+            secondary.value = getpass.getpass('Secondary Password:')
+        except mechanize._form.ControlNotFoundError:
+            # If no alternate 'password' control was found then
+            # do nothing.
+            pass
+
         # Untested, a list of availables realms is provided when this
         # is necessary.
         # self.br.form['realm'] = [realm]
