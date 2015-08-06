@@ -91,6 +91,7 @@ class juniper_vpn(object):
         self.last_action = None
         self.needs_2factor = False
         self.key = None
+        self.child = None
 
     def find_cookie(self, name):
         for cookie in self.cj:
@@ -209,6 +210,7 @@ class juniper_vpn(object):
             action.append(arg)
 
         p = subprocess.Popen(action, stdin=subprocess.PIPE)
+        self.child = p
         if args.stdin is not None:
             stdin = args.stdin.replace('%DSID%', dsid)
             stdin = stdin.replace('%HOST%', self.args.host)
@@ -216,14 +218,28 @@ class juniper_vpn(object):
         else:
             ret = p.wait()
         ret = p.returncode
+        # Reset child to None so we don't try to kill a completed
+        # process:
+        self.child = None
 
         # Openconnect specific
         if ret == 2:
             self.cj.clear(self.args.host, '/', 'DSID')
             self.r = self.br.open(self.r.geturl())
 
-def cleanup():
-    os.killpg(0, signal.SIGTERM)
+    def stop(self, signum, frame):
+        if self.child:
+            print "Interrupt received, ending external program..."
+            # Use SIGINT due to openconnect behavior where SIGINT will
+            # run the vpnc-compatible script to clean up changes but
+            # not upon SIGTERM.
+            # http://permalink.gmane.org/gmane.network.vpn.openconnect.devel/2451
+            try:
+                self.child.send_signal(signal.SIGINT)
+                self.child.wait()
+            except OSError:
+                pass
+        sys.exit(0)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(conflict_handler='resolve')
@@ -267,7 +283,7 @@ if __name__ == "__main__":
         print "--user, --host, and <action> are required parameters"
         sys.exit(1)
 
-    atexit.register(cleanup)
     jvpn = juniper_vpn(args)
+    signal.signal(signal.SIGINT, jvpn.stop)
     jvpn.run()
 
