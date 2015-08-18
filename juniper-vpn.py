@@ -109,6 +109,8 @@ class juniper_vpn(object):
                 return 'key'
             elif form.name == 'frmConfirmation':
                 return 'continue'
+            elif form.name == 'frmNextToken':
+                return 'nexttoken'
             else:
                 raise Exception('Unknown form type:', form.name)
         return 'tncc'
@@ -128,6 +130,8 @@ class juniper_vpn(object):
                 self.action_continue()
             elif action == 'connect':
                 self.action_connect()
+            elif action == 'nexttoken':
+                self.action_nexttoken()
 
             self.last_action = action
 
@@ -169,9 +173,34 @@ class juniper_vpn(object):
         self.br.select_form(nr=0)
         self.br.form['username'] = self.args.username
         self.br.form['password'] = self.args.password
+
+        # Look for secondary password field on the initial login
+        # form. If found, prompt for a secondary password. This is
+        # found in some configurations using two-factor authentication.
+        try:
+            secondary = self.br.form.find_control(type='password', nr=1)
+            secondary.value = getpass.getpass('Secondary Password:')
+        except mechanize._form.ControlNotFoundError:
+            # If no alternate 'password' control was found then
+            # do nothing.
+            pass
+
         # Untested, a list of availables realms is provided when this
         # is necessary.
         # self.br.form['realm'] = [realm]
+        self.r = self.br.submit()
+
+    def action_nexttoken(self):
+        # We are required to prompt for a second token in sequence
+        # and then submit that back.
+
+        print "Wait until the next token number displays"
+        nexttoken = getpass.getpass('Next Token (no PIN):')
+
+        # Enter username/password
+        self.br.select_form(nr=0)
+        self.br.form['password'] = nexttoken
+
         self.r = self.br.submit()
 
     def action_key(self):
