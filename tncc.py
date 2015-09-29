@@ -11,7 +11,8 @@ import collections
 import zlib
 import HTMLParser
 
-ssl._create_default_https_context = ssl._create_unverified_context
+if hasattr(ssl, '_create_unverified_context'):
+    ssl._create_default_https_context = ssl._create_unverified_context
 
 # 0013 - Message
 def decode_0013(buf):

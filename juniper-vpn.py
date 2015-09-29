@@ -18,8 +18,10 @@ import hmac
 import hashlib
 import shlex
 import tncc
+import re
 
-ssl._create_default_https_context = ssl._create_unverified_context
+if hasattr(ssl, '_create_unverified_context'):
+    ssl._create_default_https_context = ssl._create_unverified_context
 
 """
 OATH code from https://github.com/bdauvergne/python-oath
@@ -58,6 +60,14 @@ def hotp(key):
     key = binascii.unhexlify(key)
     counter = int2beint64(int(time.time()) / 30)
     return dec(hmac.new(key, counter, hashlib.sha256).digest(), 6)
+
+def force_url(host):
+    "If a string has no URI scheme, prepend https://"
+    return re.sub('^(?![^:]+://)', 'https://', host)
+
+def host_only(url):
+    "Extract just the host part of the URI, assuming the URI is like https://hostname/..."
+    return re.sub('(^[^:]+://|/.*$)', '', url)
 
 class juniper_vpn(object):
     def __init__(self, args):
@@ -104,7 +114,11 @@ class juniper_vpn(object):
 
         for form in self.br.forms():
             if form.name == 'frmLogin':
-                return 'login'
+                try:
+                    form.find_control('sn-preauth-proceed') # Throws if not found
+                    return 'preauth'
+                except mechanize.ControlNotFoundError:
+                    return 'login'
             elif form.name == 'frmDefender':
                 return 'key'
             elif form.name == 'frmConfirmation':
@@ -115,11 +129,15 @@ class juniper_vpn(object):
 
     def run(self):
         # Open landing page
-        self.r = self.br.open('https://' + self.args.host)
+        url = force_url(self.args.host)
+        print "Connecting to", url
+        self.r = self.br.open(url)
         while True:
             action = self.next_action()
             if action == 'tncc':
                 self.action_tncc()
+            elif action == 'preauth':
+                self.action_preauth()
             elif action == 'login':
                 self.action_login()
             elif action == 'key':
@@ -138,10 +156,14 @@ class juniper_vpn(object):
             raise Exception('Could not find DSPREAUTH key for host checker')
 
         dssignin_cookie = self.find_cookie('DSSIGNIN')
-        t = tncc.tncc(self.args.host);
+        t = tncc.tncc(host_only(self.args.host));
         self.cj.set_cookie(t.get_cookie(dspreauth_cookie, dssignin_cookie))
 
         self.r = self.br.open(self.r.geturl())
+
+    def action_preauth(self):
+        self.br.select_form(nr=0)
+        self.br.submit()
 
     def action_login(self):
         # The token used for two-factor is selected when this form is submitted.
@@ -151,6 +173,7 @@ class juniper_vpn(object):
 
         if self.args.password is None or self.last_action == 'login':
             if self.fixed_password:
+                print self.br
                 print 'Login failed (Invalid username or password?)'
                 sys.exit(1)
             else:
@@ -169,6 +192,7 @@ class juniper_vpn(object):
         self.br.select_form(nr=0)
         self.br.form['username'] = self.args.username
         self.br.form['password'] = self.args.password
+
         # Untested, a list of availables realms is provided when this
         # is necessary.
         # self.br.form['realm'] = [realm]
@@ -228,7 +252,7 @@ def cleanup():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(conflict_handler='resolve')
     parser.add_argument('-h', '--host', type=str,
-                        help='VPN host name')
+                        help='VPN host name or URL')
     parser.add_argument('-u', '--username', type=str,
                         help='User name')
     parser.add_argument('-o', '--oath', type=str,
