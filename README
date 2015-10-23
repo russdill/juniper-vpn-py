@@ -32,6 +32,12 @@ juniper-vpn.py [-h HOST] [-u USERNAME] [-o OATH] [-c CONFIG] [-s STDIN] \
 -u --username
 	Username to authenticate with. This option is required.
 
+-k --client_key
+  Client private key. Requires client certificate option.
+
+-r --client_cert
+  Client certificate. Requires client private key option.
+
 -o --oath
 	OATH key to use for OTP generation if required for authentication.
 	Key should be in hex format.

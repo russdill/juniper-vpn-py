@@ -242,7 +242,7 @@ if __name__ == "__main__":
                         help="String to pass to action's stdin")
     parser.add_argument('-k', '--client_key', type=str,
                         help="Fully qualified path to the client private key. Requires client cert")
-    parser.add_argument('-c', '--client_cert', type=str,
+    parser.add_argument('-r', '--client_cert', type=str,
                         help="Fully qualified path to the client certificate. Requires client private key")
     parser.add_argument('action', nargs=argparse.REMAINDER,
                         metavar='<action> [<args...>]',
