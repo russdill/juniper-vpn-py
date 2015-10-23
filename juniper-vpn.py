@@ -116,6 +116,9 @@ class juniper_vpn(object):
     def run(self):
         # Open landing page
         self.r = self.br.open('https://' + self.args.host)
+        if args.client_key is not None and args.client_cert is not None:
+          self.br.add_client_certificate('https://'
+            + self.args.host,self.args.client_key,self.args.client_cert)
         while True:
             action = self.next_action()
             if action == 'tncc':
@@ -237,6 +240,10 @@ if __name__ == "__main__":
                         help='Config file')
     parser.add_argument('-s', '--stdin', type=str,
                         help="String to pass to action's stdin")
+    parser.add_argument('-k', '--client_key', type=str,
+                        help="Fully qualified path to the client private key. Requires client cert")
+    parser.add_argument('-c', '--client_cert', type=str,
+                        help="Fully qualified path to the client certificate. Requires client private key")
     parser.add_argument('action', nargs=argparse.REMAINDER,
                         metavar='<action> [<args...>]',
                         help='External command')
@@ -253,7 +260,7 @@ if __name__ == "__main__":
     if args.config is not None:
         config = ConfigParser.RawConfigParser()
         config.read(args.config)
-        for arg in ['username', 'host', 'password', 'oath', 'action', 'stdin']:
+        for arg in ['username', 'host', 'password', 'oath', 'action', 'stdin', 'client_key', 'client_cert']:
             if args.__dict__[arg] is None:
                 try:
                     args.__dict__[arg] = config.get('vpn', arg)
