@@ -91,6 +91,7 @@ class juniper_vpn(object):
         self.last_action = None
         self.needs_2factor = False
         self.key = None
+        self.pass_postfix = None
 
     def find_cookie(self, name):
         for cookie in self.cj:
@@ -156,7 +157,8 @@ class juniper_vpn(object):
             else:
                 self.args.password = getpass.getpass('Password:')
                 self.needs_2factor = False
-
+        if self.args.pass_prefix:
+            self.pass_postfix = getpass.getpass("Secondary password postfix:")
         if self.needs_2factor:
             if self.args.oath:
                 self.key = hotp(self.args.oath)
@@ -169,6 +171,14 @@ class juniper_vpn(object):
         self.br.select_form(nr=0)
         self.br.form['username'] = self.args.username
         self.br.form['password'] = self.args.password
+        if self.args.pass_prefix:
+            if self.pass_postfix:
+                secondary_password = "".join([  self.args.pass_prefix,
+                                                self.pass_postfix])
+            else:
+                print 'Secondary password postfix not provided'
+                sys.exit(1)
+            self.br.form['password#2'] = secondary_password
         # Untested, a list of availables realms is provided when this
         # is necessary.
         # self.br.form['realm'] = [realm]
@@ -231,6 +241,8 @@ if __name__ == "__main__":
                         help='VPN host name')
     parser.add_argument('-u', '--username', type=str,
                         help='User name')
+    parser.add_argument('-p', '--pass_prefix', type=str,
+                        help="Secondary password prefix")
     parser.add_argument('-o', '--oath', type=str,
                         help='OATH key for two factor authentication (hex)')
     parser.add_argument('-c', '--config', type=str,
@@ -253,7 +265,7 @@ if __name__ == "__main__":
     if args.config is not None:
         config = ConfigParser.RawConfigParser()
         config.read(args.config)
-        for arg in ['username', 'host', 'password', 'oath', 'action', 'stdin']:
+        for arg in ['username', 'host', 'password', 'pass_prefix', 'oath', 'action', 'stdin']:
             if args.__dict__[arg] is None:
                 try:
                     args.__dict__[arg] = config.get('vpn', arg)
