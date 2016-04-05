@@ -1,0 +1,73 @@
+Juniper VPN Host Checker:
+
+This script authenticates provides host checker functionality for use with
+openconnect. It operates as the CSD wrapper.
+
+Example usage with openconnect:
+
+TNCC_FUNK=1 TNCC_CERTS=cert1.pem openconnect --juniper --user joeuser \
+	--csd-wrapper tncc.py vpn.example.com
+
+openconnect will run the tncc.py script as part of the authentication process.
+
+Juniper Networks Host Checker:
+
+The host checker is currently only tested on a subset of sites and does not
+yet support sites that require periodic host checker updates. The behavior of
+the host checker can be modified by setting environmental variables. This is
+primarily required for funk support.
+
+TNCC_DEVICE_ID
+	The host checker can optionally pass a device ID. This may be required
+	in some configurations. The device ID is a capitalized 32 character
+	hex string and is typically found at the following register key in
+	windows installations:
+		HKEY_CURRENT_USER\Software\Juniper Networks\Device Id
+
+TNCC_FUNK
+	Some servers required host machine identification. This is refered to
+	as a "funk message" in the documentation. The identification can
+	include a system platform, a hostname, a list of network hardware
+	addresses, and it may include a request for client certificates.
+	Enabling this option causes the host checker to request a funk message.
+
+TNCC_HOSTNAME
+	By default, the host checker sends the system's hostname in response to
+	a funk message. This allows the hostname returned to be overridden
+
+TNCC_PLATFORM
+	By default, the current system platform is returned in response to a
+	funk message. This allows the platform identifier to be overridden with
+	another identifier, such as 'Windows 7'.
+
+TNCC_HWADDR
+	By default, the host checker reads the system's network mac addresses
+	and sends them. This option allows that behavior be overridden by
+	specifying a comma delimited list of hardware addresses to send instead.
+
+TNCC_CERTS
+	The server may request client certificates in response to a funk
+	message. This option accepts a comma delimited list of pem formatted
+	certificates. The certificates are chosen from the list based on the
+	requirements passed in the funk message. For use on Windows, the
+	required certificate is generally the machine certificate. Information
+	on accessing the machine certificate can be found here:
+		https://wiki.strongswan.org/projects/strongswan/wiki/Win7Certs
+
+Running without root or tun access:
+
+openconnect provides two options for running without any special permissions.
+The first option is to create a tun device in advance and configure permissions
+for user access.
+
+The second is to redirect the traffic for the tun device to an external program.
+This external program can then configure a user-level SOCKS proxy:
+
+openconnect --juniper --user joeuser --csd-wrapper tncc.py \
+	--script-tun --script "tunsocks -D 1080" vpn.example.com
+
+Both tunsocks and ocproxy can perform this role:
+
+http://github.com/russdill/tunsocks
+http://repo.or.cz/w/ocproxy.git
+

@@ -1,0 +1,125 @@
+Juniper VPN Authenticator:
+
+This script authenticates with a Juniper VPN server to generate a session
+cookie (DSID), and then passes that cookie to a VPN client (openconnect).
+
+Example usage with openconnect:
+
+./juniper-vpn.py --host vpn.example.com --username joeuser \
+	--stdin DSID=%DSID% openconnect --juniper %HOST% --cookie-on-stdin
+
+This will connect to vpn.example.com and prompt the user for a authentication
+password. Once authenticated, the session cookie will be passed to openconnect
+which will connect to the VPN. Note that because the DSID provides full access
+to the VPN, it can be easily passed via stdin to avoid having it show up
+in the process list.
+
+Juniper Networks Host Checker:
+
+A python module, tncc.py, is integrated with juniper-vpn.py and provides
+support for VPN sites which require a host checker step. It is currently only
+tested on a subset of sites and does not yet support sites that require
+periodic host checker updates.
+
+Command line options:
+
+juniper-vpn.py [-h HOST] [-u USERNAME] [-o OATH] [-c CONFIG] [-s STDIN] \
+	<external program> <external program arguments...>
+
+-h --host
+	VPN server to access. This option is required.
+
+-u --username
+	Username to authenticate with. This option is required.
+
+-p --pass_prefix
+	Optional, used for passwords composed of fixed prefix and variable
+	postfix. This is fixed prefix part.
+
+-o --oath
+	OATH key to use for OTP generation if required for authentication.
+	Key should be in hex format.
+
+-c --config
+	Config file. Rather than passing arguments on the command line,
+	they can be contained within a config file. Command line arguments
+	override config file options. See sample.cfg for documentation.
+
+-s --stdin
+	Provide input to external program. This allows the cookie to be passed
+	on stdin, avoiding having it appear in the process list. The string
+	%DSID% will be replaced with the DSID cookie value. The string %HOST%
+	will be replaced with the server hostname.
+
+-d --device-id
+	The host checker can optionally pass a device ID. This may be required
+	in some configurations. The device ID is a capitalized 32 character
+	hex string and is typically found at the following register key in
+	windows installations:
+		HKEY_CURRENT_USER\Software\Juniper Networks\Device Id
+
+-f --enable-funk
+	Some servers required host machine identification. This is refered to
+	as a "funk message" in the documentation. The identification can
+	include a system platform, a hostname, a list of network hardware
+	addresses, and it may include a request for client certificates.
+	Enabling this option causes the host checker to request a funk message.
+
+-H --hostname
+	By default, the host checker sends the system's hostname in response to
+	a funk message. This allows the hostname returned to be overridden
+
+-p --platform
+	By default, the current system platform is returned in response to a
+	funk message. This allows the platform identifier to be overridden with
+	another identifier, such as 'Windows 7'.
+
+-a --hwaddr
+	By default, the host checker reads the system's network mac addresses
+	and sends them. This option allows that behavior be overridden by
+	specifying a comma delimited list of hardware addresses to send instead.
+
+-C --certs
+	The server may request client certificates in response to a funk
+	message. This option accepts a comma delimited list of pem formatted
+	certificates. The certificates are chosen from the list based on the
+	requirements passed in the funk message. For use on Windows, the
+	required certificate is generally the machine certificate. Information
+	on accessing the machine certificate can be found here:
+		https://wiki.strongswan.org/projects/strongswan/wiki/Win7Certs
+
+-U --user-agent
+        The Juniper VPN server behaves differently based on the user agent
+        string sent during the initial authentication step. This argument allows
+        the user agent string to be overridden.
+
+<external program> <external program arguments...>
+	Runs the external program with the supplied arguments when a cookie
+	is generated. %DSID% in any argument is replaced with the DSID cookie
+	value. %HOST% in any argument is replaced with the server hostname.
+	If the external program returns a positive return code, it is assumed
+	that a fatal error has occurred (such as bad command line arguments)
+	and the script exits. If the external program returns -EPERM, it is
+	assumed that the DSID is no longer valid and a new one is generated.
+	For all other return codes, the external program is simply called again.
+	An external program is required.
+
+
+Running without root or tun access:
+
+openconnect provides two options for running without any special permissions.
+The first option is to create a tun device in advance and configure permissions
+for user access.
+
+The second is to redirect the traffic for the tun device to an external program.
+This external program can then configure a user-level SOCKS proxy:
+
+./juniper-vpn.py -c example.cfg -s DSID=%DSID% \
+	openconnect --juniper %HOST% --cookie-on-stdin --script-tun \
+	--script "tunsocks -D 1080"
+
+Both tunsocks and ocproxy can perform this role:
+
+http://github.com/russdill/tunsocks
+http://repo.or.cz/w/ocproxy.git
+

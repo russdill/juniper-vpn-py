@@ -18,6 +18,12 @@ import hmac
 import hashlib
 import shlex
 import tncc
+import platform
+import socket
+import netifaces
+import datetime
+
+debug = False
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -65,6 +71,36 @@ class juniper_vpn(object):
         self.fixed_password = args.password is not None
         self.last_connect = 0
 
+        if args.enable_funk:
+            if not args.platform:
+                args.platform = platform.system() + ' ' + platform.release()
+            if not args.hostname:
+                args.hostname = socket.gethostname()
+            if not args.hwaddr:
+                args.hwaddr = []
+                for iface in netifaces.interfaces():
+                    try:
+                        mac = netifaces.ifaddresses(iface)[netifaces.AF_LINK][0]['addr']
+                        assert mac != '00:00:00:00:00:00'
+                        args.hwaddr.append(mac)
+                    except:
+                        pass
+            else:
+                args.hwaddr = [n.strip() for n in args.hwaddr.split(',')]
+
+            certs = []
+            if args.certs:
+                now = datetime.datetime.now()
+                for f in args.certs.split(','):
+                    cert = tncc.x509cert(f.strip())
+                    if now < cert.not_before:
+                        print 'WARNING: %s is not yet valid' % f
+                    if now > cert.not_after:
+                        print 'WARNING: %s is expired' % f
+                    certs.append(cert)
+                args.certs = [n.strip() for n in args.certs.split(',')]
+            args.certs = certs
+
         self.br = mechanize.Browser()
 
         self.cj = cookielib.LWPCookieJar()
@@ -81,11 +117,16 @@ class juniper_vpn(object):
                               max_time=1)
 
         # Want debugging messages?
-        #self.br.set_debug_http(True)
-        #self.br.set_debug_redirects(True)
-        #self.br.set_debug_responses(True)
+        if debug:
+            self.br.set_debug_http(True)
+            self.br.set_debug_redirects(True)
+            self.br.set_debug_responses(True)
 
-        self.user_agent = 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.1) Gecko/2008071615 Fedora/3.0.1-1.fc9 Firefox/3.0.1'
+        if args.user_agent:
+            self.user_agent = args.user_agent
+        else:
+            self.user_agent = 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.1) Gecko/2008071615 Fedora/3.0.1-1.fc9 Firefox/3.0.1'
+
         self.br.addheaders = [('User-agent', self.user_agent)]
 
         self.last_action = None
@@ -139,7 +180,8 @@ class juniper_vpn(object):
             raise Exception('Could not find DSPREAUTH key for host checker')
 
         dssignin_cookie = self.find_cookie('DSSIGNIN')
-        t = tncc.tncc(self.args.host);
+        t = tncc.tncc(self.args.host, args.device_id, args.enable_funk,
+                    args.platform, args.hostname, args.hwaddr, args.certs);
         self.cj.set_cookie(t.get_cookie(dspreauth_cookie, dssignin_cookie))
 
         self.r = self.br.open(self.r.geturl())
@@ -236,6 +278,7 @@ def cleanup():
     os.killpg(0, signal.SIGTERM)
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(conflict_handler='resolve')
     parser.add_argument('-h', '--host', type=str,
                         help='VPN host name')
@@ -249,6 +292,20 @@ if __name__ == "__main__":
                         help='Config file')
     parser.add_argument('-s', '--stdin', type=str,
                         help="String to pass to action's stdin")
+    parser.add_argument('-d', '--device-id', type=str,
+                        help="Hex device ID")
+    parser.add_argument('-f', '--enable-funk', action='store_true',
+                        help="Request funk message")
+    parser.add_argument('-H', '--hostname', type=str,
+                        help="Hostname to pass with funk request")
+    parser.add_argument('-p', '--platform', type=str,
+                        help="Platform type to pass with funk request")
+    parser.add_argument('-a', '--hwaddr', type=str,
+                        help="Comma separated list of hwaddrs to pass with funk request")
+    parser.add_argument('-C', '--certs', type=str,
+                        help="Comma separated list of pem formatted certificates for funk response")
+    parser.add_argument('-U', '--user-agent', type=str,
+                        help="User agent string")
     parser.add_argument('action', nargs=argparse.REMAINDER,
                         metavar='<action> [<args...>]',
                         help='External command')
@@ -265,12 +322,27 @@ if __name__ == "__main__":
     if args.config is not None:
         config = ConfigParser.RawConfigParser()
         config.read(args.config)
-        for arg in ['username', 'host', 'password', 'pass_prefix', 'oath', 'action', 'stdin']:
+        for arg in ['username', 'host', 'password', 'oath', 'action', 'stdin',
+                     'hostname', 'platform', 'hwaddr', 'certs', 'device_id',
+                     'user_agent', 'pass_prefix']:
             if args.__dict__[arg] is None:
                 try:
                     args.__dict__[arg] = config.get('vpn', arg)
                 except:
                     pass
+
+        if not args.enable_funk:
+            try:
+                val = config.get('vpn', 'enable_funk').lower()
+                if val in ['true', '1', 'yes', 'enable', 'on']:
+                    val = True
+                elif val in ['false', '0', 'no', 'disable', 'off']:
+                    val = False
+                else:
+                    raise Exception("Unable to parse funk argument", val)
+                args.enable_funk = val
+            except:
+                pass
 
     if not isinstance(args.action, list):
         args.action = shlex.split(args.action)
