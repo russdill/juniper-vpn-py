@@ -344,7 +344,9 @@ if __name__ == "__main__":
             except:
                 pass
 
-    if not isinstance(args.action, list):
+    if args.action is None:
+        args.action = []
+    elif not isinstance(args.action, list):
         args.action = shlex.split(args.action)
 
     if args.username == None or args.host == None or args.action == []:
