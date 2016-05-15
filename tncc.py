@@ -34,7 +34,8 @@ logging.basicConfig(stream=sys.stderr, level=logging.DEBUG if debug else logging
 MSG_POLICY = 0x58316
 MSG_FUNK_PLATFORM = 0x58301
 MSG_FUNK = 0xa4c01
-
+DEFAULT_USER_AGENT = 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.1)' \
+                   + 'Gecko/2008071615 Fedora/3.0.1-1.fc9 Firefox/3.0.1'
 
 # 0013 - Message
 def decode_0013(buf, indent):
@@ -259,7 +260,9 @@ class x509cert(object):
         self.subject = self.decode_names(tbs.getComponentByName('subject'))
 
 class tncc(object):
-    def __init__(self, vpn_host, device_id=None, funk=None, platform=None, hostname=None, mac_addrs=[], certs=[]):
+    def __init__(self, vpn_host, device_id=None, funk=None, platform=None,
+                 hostname=None, mac_addrs=[], certs=[],
+                 user_agent=DEFAULT_USER_AGENT):
         self.vpn_host = vpn_host
         self.path = '/dana-na/'
 
@@ -292,8 +295,7 @@ class tncc(object):
             self.br.set_debug_redirects(True)
             self.br.set_debug_responses(True)
 
-        self.user_agent = 'Neoteris HC Http'
-        self.br.addheaders = [('User-agent', self.user_agent)]
+        self.br.addheaders = [('User-agent', user_agent)]
 
     def find_cookie(self, name):
         for cookie in self.cj:
@@ -617,6 +619,11 @@ if __name__ == "__main__":
 
     # \HKEY_CURRENT_USER\Software\Juniper Networks\Device Id
     device_id = os.environ.get('TNCC_DEVICE_ID')
+
+    if 'TNCC_USER_AGENT' in os.environ:
+        user_agent = os.environ['TNCC_USER_AGENT'].strip()
+    else:
+        user_agent = DEFAULT_USER_AGENT
 
     t = tncc(vpn_host, device_id, funk, platform, hostname, mac_addrs, certs)
 

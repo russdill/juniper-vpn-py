@@ -181,7 +181,8 @@ class juniper_vpn(object):
 
         dssignin_cookie = self.find_cookie('DSSIGNIN')
         t = tncc.tncc(self.args.host, args.device_id, args.enable_funk,
-                    args.platform, args.hostname, args.hwaddr, args.certs);
+                      args.platform, args.hostname, args.hwaddr, args.certs,
+                      self.user_agent);
         self.cj.set_cookie(t.get_cookie(dspreauth_cookie, dssignin_cookie))
 
         self.r = self.br.open(self.r.geturl())

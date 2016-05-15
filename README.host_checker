@@ -54,6 +54,10 @@ TNCC_CERTS
 	on accessing the machine certificate can be found here:
 		https://wiki.strongswan.org/projects/strongswan/wiki/Win7Certs
 
+TNCC_USER_AGENT
+	Some servers behave differently for different user agent strings used in
+	the host checker. This allows the user agent string to be overridden.
+
 Running without root or tun access:
 
 openconnect provides two options for running without any special permissions.
