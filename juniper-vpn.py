@@ -223,9 +223,8 @@ class juniper_vpn(object):
                 print 'Secondary password postfix not provided'
                 sys.exit(1)
             self.br.form['password#2'] = secondary_password
-        # Untested, a list of availables realms is provided when this
-        # is necessary.
-        # self.br.form['realm'] = [realm]
+        if self.args.realm:
+            self.br.form['realm'] = [self.args.realm]
         self.r = self.br.submit()
 
     def action_key(self):
@@ -299,6 +298,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(conflict_handler='resolve')
     parser.add_argument('-h', '--host', type=str,
                         help='VPN host name')
+    parser.add_argument('-r', '--realm', type=str,
+                        help='VPN realm')
     parser.add_argument('-u', '--username', type=str,
                         help='User name')
     parser.add_argument('-p', '--pass_prefix', type=str,
@@ -340,8 +341,8 @@ if __name__ == "__main__":
         config = ConfigParser.RawConfigParser()
         config.read(args.config)
         for arg in ['username', 'host', 'password', 'oath', 'action', 'stdin',
-                     'hostname', 'platform', 'hwaddr', 'certs', 'device_id',
-                     'user_agent', 'pass_prefix']:
+                    'hostname', 'platform', 'hwaddr', 'certs', 'device_id',
+                    'user_agent', 'pass_prefix', 'realm']:
             if args.__dict__[arg] is None:
                 try:
                     args.__dict__[arg] = config.get('vpn', arg)
@@ -373,4 +374,3 @@ if __name__ == "__main__":
     jvpn = juniper_vpn(args)
     signal.signal(signal.SIGINT, jvpn.stop)
     jvpn.run()
-
