@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 # -*- coding: utf-8 -*-
 
 import subprocess
@@ -22,10 +22,10 @@ import platform
 import socket
 import netifaces
 import datetime
+import re
 
 debug = False
 
-ssl._create_default_https_context = ssl._create_unverified_context
 
 """
 OATH code from https://github.com/bdauvergne/python-oath
@@ -134,6 +134,9 @@ class juniper_vpn(object):
         self.key = None
         self.pass_postfix = None
 
+    def get_matrix_index(self, html):
+        return re.search(r'Challenge: (\w+)', html).group(1)
+
     def find_cookie(self, name):
         for cookie in self.cj:
             if cookie.name == name:
@@ -234,7 +237,8 @@ class juniper_vpn(object):
                 sys.exit(1)
             self.key = hotp(self.args.oath)
         elif self.key is None:
-            self.key = getpass.getpass('Two-factor key:')
+            matrix = self.get_matrix_index(self.br.response().read())
+            self.key = getpass.getpass('Two-factor key (' + matrix + '):')
         self.br.select_form(nr=0)
         self.br.form['password'] = self.key
         self.key = None
