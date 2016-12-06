@@ -274,7 +274,11 @@ class juniper_vpn(object):
             self.r = self.br.open(self.r.geturl())
 
 def cleanup():
-    os.killpg(0, signal.SIGTERM)
+    # Use SIGINT due to openconnect behavior where SIGINT will
+    # run the vpnc-compatible script to clean up changes but
+    # not upon SIGTERM.
+    # http://permalink.gmane.org/gmane.network.vpn.openconnect.devel/2451
+    os.killpg(0, signal.SIGINT)
 
 if __name__ == "__main__":
 
