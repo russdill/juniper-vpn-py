@@ -150,6 +150,8 @@ class juniper_vpn(object):
                 return 'login'
             elif form.name == 'frmDefender':
                 return 'key'
+            elif form.name == 'frmNextToken':
+                return 'key'
             elif form.name == 'frmConfirmation':
                 return 'continue'
             else:
