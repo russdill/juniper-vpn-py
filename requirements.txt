@@ -1,0 +1,12 @@
+appdirs==1.4.3
+html5lib==0.999999999
+mechanize==0.3.3
+netifaces==0.10.5
+packaging==16.8
+pyasn1==0.2.3
+pyasn1-modules==0.0.8
+pycurl==7.43.0
+pyparsing==2.2.0
+six==1.10.0
+urlgrabber==3.10.2
+webencodings==0.5.1
