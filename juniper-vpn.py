@@ -246,7 +246,19 @@ class juniper_vpn(object):
 
     def action_continue(self):
         # Yes, I want to terminate the existing connection
+
+        # Fix up the broken HTML
+        html = self.r.read()
+        html = html.replace('onclick="checkSelected()",  name="postfixSID"',
+                            'onclick="checkSelected()"  name="postfixSID"')
+        self.r.set_data(html)
+        self.br.set_response(self.r)
+
+        # Select the existing connection to close
         self.br.select_form(nr=0)
+        control = self.br.find_control(name="postfixSID")
+        control.set_single(True)
+
         self.r = self.br.submit()
 
     def action_connect(self):
