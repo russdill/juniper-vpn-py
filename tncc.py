@@ -75,7 +75,7 @@ def decode_0ce4(buf, indent):
 
 # 0ce5 - string without hex prefixer
 def decode_0ce5(buf, indent):
-    s = struct.unpack(str(len(buf)) + "s", buf)
+    s = struct.unpack(str(len(buf)) + "s", buf)[0]
     logging.debug('%scmd 0ce5 (string) %d bytes', indent, len(buf))
     s = s.rstrip('\0')
     logging.debug('%s', s)
@@ -104,7 +104,7 @@ def decode_0cf0(buf, indent):
 
 # 0cf1 - string without hex prefixer
 def decode_0cf1(buf, indent):
-    s = struct.unpack(str(len(buf)) + "s", buf)
+    s = struct.unpack(str(len(buf)) + "s", buf)[0]
     logging.debug('%scmd 0cf1 (string) %d bytes', indent, len(buf))
     s = s.rstrip('\0')
     logging.debug('%s', s)
@@ -112,8 +112,9 @@ def decode_0cf1(buf, indent):
 
 # 0cf3 - u32
 def decode_0cf3(buf, indent):
-    logging.debug('%scmd 0cf3 (u32) %d bytes', indent, len(buf))
-    return struct.unpack(">I", buf)
+    ret = struct.unpack(">I", buf)
+    logging.debug('%scmd 0cf3 (u32) %d bytes - %d', indent, len(buf), ret[0])
+    return ret
 
 def decode_packet(buf, indent=""):
     cmd, _1, _2, length, _3 = struct.unpack(">IBBHI", buf[:12])
@@ -375,56 +376,58 @@ class tncc(object):
         # We don't know if the xml parser on the other end is fully complaint,
         # just format a string like it expects.
 
-        msg = "<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s'> " % self.platform
+        msg = "<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s' ClientType='Agentless'> " % self.platform
         msg += "<ClientAttributes SequenceID='-1'> "
 
         def add_attr(key, val):
-            return "<Attribute Name='%s' Value='%s' />" % (val, key)
+            return "<Attribute Name='%s' Value='%s' />" % (key, val)
 
         msg += add_attr('Platform', self.platform)
         if self.hostname:
-            msg += add_attr('NETBIOSName', self.hostname)
+            msg += add_attr(self.hostname, 'NETBIOSName') # Reversed
 
         for mac in self.mac_addrs:
-            msg += add_attr('MACAddress', mac)
+            msg += add_attr(mac, 'MACAddress') # Reversed
 
         msg += "</ClientAttributes>  </FunkMessage>"
 
         return encode_0ce7(msg, MSG_FUNK_PLATFORM)
 
     def gen_funk_present(self):
-        msg = "<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s'> " % self.platform
+        msg = "<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s' ClientType='Agentless'> " % self.platform
         msg += "<Present SequenceID='0'></Present>  </FunkMessage>"
         return encode_0ce7(msg, MSG_FUNK)
 
     def gen_funk_response(self, certs):
 
-        msg = "<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s'> " % self.platform
+        msg = "<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s' ClientType='Agentless'> " % self.platform
         msg += "<ClientAttributes SequenceID='0'> "
         msg += "<Attribute Name='Platform' Value='%s' />" % self.platform
         for name, value in certs.iteritems():
-            msg += "<Attribute Name='%s' Value='%s' />" % (name, value.data)
+            msg += "<Attribute Name='%s' Value='%s' />" % (name, value.data.strip())
+            msg += "<Attribute Name='%s' Value='%s' />" % (name, value.data.strip())
         msg += "</ClientAttributes>  </FunkMessage>"
 
         return encode_0ce7(msg, MSG_FUNK)
 
     def gen_policy_request(self):
-        policy_blocks = {
+        policy_blocks = collections.OrderedDict({
             'policy_request': {
-                'message_version': '2'
+                'message_version': '3'
             },
             'esap': {
                 'esap_version': 'NOT_AVAILABLE',
                 'fileinfo': 'NOT_AVAILABLE',
                 'has_file_versions': 'YES',
-                'needs_exact_sdk': 'YES'
+                'needs_exact_sdk': 'YES',
+                'opswat_sdk_version': '3'
             },
             'system_info': {
-                'os_version': '2.6.1',
-                'sp_version': '1',
+                'os_version': '2.6.2',
+                'sp_version': '0',
                 'hc_mode': 'userMode'
             }
-        }
+        })
 
         msg = ''
         for policy_key, policy_val in policy_blocks.iteritems():
@@ -469,13 +472,15 @@ class tncc(object):
             except:
                 self.set_cookie('DSSIGNIN', dssignin)
 
-        inner = encode_0ce7('policy request', MSG_POLICY)
-        inner += self.gen_policy_request()
+        inner = self.gen_policy_request()
+        inner += encode_0ce7('policy request\x00v4', MSG_POLICY)
         if self.funk:
             inner += self.gen_funk_platform()
             inner += self.gen_funk_present()
 
-        msg_raw = encode_0013(encode_0ce4(inner) + encode_0ce5('Accept-Language: en'))
+        msg_raw = encode_0013(encode_0ce4(inner) + encode_0ce5('Accept-Language: en') + encode_0cf3(1))
+        logging.debug('Sending packet -')
+        decode_packet(msg_raw)
 
         post_attrs = {
             'connID': '0',
@@ -493,6 +498,7 @@ class tncc(object):
         response = self.parse_response()
 
         # msg has the stuff we want, it's base64 encoded
+        logging.debug('Receiving packet -')
         msg_raw = base64.b64decode(response['msg'])
         _1, _2, msg_decoded = decode_packet(msg_raw)
 
@@ -540,11 +546,14 @@ class tncc(object):
             if cert_id not in certs:
                 logging.warn('Could not find certificate for %s', str(req_dns))
 
-        inner = self.gen_policy_response(policy_objs)
+        inner = ''
         if certs:
             inner += self.gen_funk_response(certs)
+        inner += self.gen_policy_response(policy_objs)
 
         msg_raw = encode_0013(encode_0ce4(inner) + encode_0ce5('Accept-Language: en'))
+        logging.debug('Sending packet -')
+        decode_packet(msg_raw)
 
         post_attrs = {
             'connID': '1',
