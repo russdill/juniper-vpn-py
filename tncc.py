@@ -198,8 +198,8 @@ class x509cert(object):
     @staticmethod
     def decode_names(data):
         ret = dict()
-        for name_part in data:
-            for attr in name_part:
+        for i in range(0, len(data)):
+            for attr in data[i]:
                 type = str(attr.getComponentByPosition(0).getComponentByName('type'))
                 value = str(attr.getComponentByPosition(0).getComponentByName('value'))
                 value = str(pyasn1.codec.der.decoder.decode(value)[0])
