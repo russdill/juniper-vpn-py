@@ -146,7 +146,15 @@ class juniper_vpn(object):
 
         for form in self.br.forms():
             if form.name == 'frmLogin':
-                return 'login'
+                try:
+                    form.find_control('sn-preauth-proceed')
+                    return 'continue'
+                except mechanize.ControlNotFoundError:
+                    try:
+                        form.find_control('sn-postauth-proceed')
+                        return 'continue'
+                    except mechanize.ControlNotFoundError:
+                        return 'login'
             elif form.name == 'frmDefender':
                 return 'key'
             elif form.name == 'frmConfirmation':
