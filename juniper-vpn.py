@@ -1,11 +1,12 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 # -*- coding: utf-8 -*-
 
 import subprocess
+import sys,logging
 import mechanize
+import re
 import cookielib
 import getpass
-import sys
 import os
 import ssl
 import argparse
@@ -22,10 +23,14 @@ import platform
 import socket
 import netifaces
 import datetime
+import re
 
 debug = False
 
-ssl._create_default_https_context = ssl._create_unverified_context
+if hasattr(ssl, '_create_unverified_context'):
+    ssl._create_default_https_context = ssl._create_unverified_context
+elif hasattr(ssl,'_create_stdlib_context'):
+    ssl._create_default_https_context = ssl._create_stdlib_context
 
 """
 OATH code from https://github.com/bdauvergne/python-oath
@@ -102,6 +107,8 @@ class juniper_vpn(object):
             args.certs = certs
 
         self.br = mechanize.Browser()
+        # RobustFactory can't cope with html errors present on juniper!
+        self.br = mechanize.Browser() 
 
         self.cj = cookielib.LWPCookieJar()
         self.br.set_cookiejar(self.cj)
@@ -116,23 +123,29 @@ class juniper_vpn(object):
         self.br.set_handle_refresh(mechanize._http.HTTPRefreshProcessor(),
                               max_time=1)
 
-        # Want debugging messages?
-        if debug:
-            self.br.set_debug_http(True)
-            self.br.set_debug_redirects(True)
-            self.br.set_debug_responses(True)
-
         if args.user_agent:
             self.user_agent = args.user_agent
         else:
             self.user_agent = 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.1) Gecko/2008071615 Fedora/3.0.1-1.fc9 Firefox/3.0.1'
+
+        if self.args.debug:
+            logger = logging.getLogger("mechanize")
+            logger.addHandler(logging.StreamHandler(sys.stdout))
+            logger.setLevel(logging.DEBUG)
+            self.br.set_debug_http(True)
+            self.br.set_debug_redirects(True)
+            self.br.set_debug_responses(True)
 
         self.br.addheaders = [('User-agent', self.user_agent)]
 
         self.last_action = None
         self.needs_2factor = False
         self.key = None
+        self.child = None
         self.pass_postfix = None
+
+    def get_matrix_index(self, html):
+        return re.search(r'Challenge: (\w+)', html).group(1)
 
     def find_cookie(self, name):
         for cookie in self.cj:
@@ -167,6 +180,18 @@ class juniper_vpn(object):
             elif action == 'key':
                 self.action_key()
             elif action == 'continue':
+                # Say what? The Juniper VPN has HTML syntax errors that keep the mechanize 
+                # parser from being able to properly parse the html
+                # So we pull the HTML, fix the one critical error, 
+                # and recreate the request
+                update_response=self.br.response()
+                html = update_response.get_data().replace('<td><input id="postfixSID_1" type="checkbox" onclick="checkSelected()",  name="postfixSID"', 
+                                                          '<td><input id="postfixSID_1" type="checkbox" onclick="checkSelected()"  name="postfixSID"')
+                headers=re.findall(r"(?P<name>.*?): (?P<value>.*?)\r\n", 
+                                   str(update_response.info()))
+                response = mechanize.make_response(html, headers,update_response.geturl(), 
+                                                   update_response.code,update_response.msg)
+                self.br.set_response(response)
                 self.action_continue()
             elif action == 'connect':
                 self.action_connect()
@@ -236,16 +261,32 @@ class juniper_vpn(object):
                 sys.exit(1)
             self.key = hotp(self.args.oath)
         elif self.key is None:
-            self.key = getpass.getpass('Two-factor key:')
+            matrix = self.get_matrix_index(self.br.response().read())
+            self.key = getpass.getpass('Two-factor key (' + matrix + '):')
         self.br.select_form(nr=0)
         self.br.form['password'] = self.key
         self.key = None
         self.r = self.br.submit()
 
     def action_continue(self):
-        # Yes, I want to terminate the existing connection
-        self.br.select_form(nr=0)
-        self.r = self.br.submit()
+	# this could be select_form(name='frmConfirmation')
+	self.br.select_form(nr=0)
+	if self.args.terminate:
+	    # Yes, I want to terminate the existing connection
+	    print "Terminating existing session!"
+	    # sometimes only one connection can be active at a time,
+	    # force log out other sessions. Find the checkbox, click it
+	    # then remove the disable from the submit button
+	    check_box_control=self.br.find_control(name='postfixSID')
+	    close_selected_session=self.br.find_control(name='btnContinue')
+	    # flip the selection on
+	    check_box_control.items[0].selected=True
+	    # remove disabled from close sessions (javascript normally does this)
+	    close_selected_session.disabled=False
+	    # now submit correct button
+	    self.r = self.br.submit(name='btnContinue')
+	else:
+	    self.r = self.br.submit()
 
     def action_connect(self):
         now = time.time()
@@ -262,6 +303,7 @@ class juniper_vpn(object):
             action.append(arg)
 
         p = subprocess.Popen(action, stdin=subprocess.PIPE)
+        self.child = p
         if args.stdin is not None:
             stdin = args.stdin.replace('%DSID%', dsid)
             stdin = stdin.replace('%HOST%', self.args.host)
@@ -270,13 +312,29 @@ class juniper_vpn(object):
             ret = p.wait()
         ret = p.returncode
 
+        # Reset child to None so we don't try to kill a completed
+        # process:
+        self.child = None
+
         # Openconnect specific
         if ret == 2:
             self.cj.clear(self.args.host, '/', 'DSID')
             self.r = self.br.open(self.r.geturl())
 
-def cleanup():
-    os.killpg(0, signal.SIGTERM)
+    def stop(self, signum, frame):
+        if self.child:
+            print "Interrupt received, ending external program..."
+            # Use SIGINT due to openconnect behavior where SIGINT will
+            # run the vpnc-compatible script to clean up changes but
+            # not upon SIGTERM.
+            # http://permalink.gmane.org/gmane.network.vpn.openconnect.devel/2451
+            try:
+                self.child.send_signal(signal.SIGINT)
+                self.child.wait()
+            except OSError:
+                pass
+        sys.exit(0)
+
 
 if __name__ == "__main__":
 
@@ -309,6 +367,10 @@ if __name__ == "__main__":
                         help="Comma separated list of pem formatted certificates for funk response")
     parser.add_argument('-U', '--user-agent', type=str,
                         help="User agent string")
+    parser.add_argument('-d', '--debug', action='store_true',
+                        help='enable http debug')
+    parser.add_argument('-t', '--terminate', action='store_true',
+                        help='terminate existing connections')
     parser.add_argument('action', nargs=argparse.REMAINDER,
                         metavar='<action> [<args...>]',
                         help='External command')
@@ -357,6 +419,6 @@ if __name__ == "__main__":
         print "--host and <action> are required parameters"
         sys.exit(1)
 
-    atexit.register(cleanup)
     jvpn = juniper_vpn(args)
+    signal.signal(signal.SIGINT, jvpn.stop)
     jvpn.run()
