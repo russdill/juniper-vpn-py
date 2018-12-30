@@ -571,13 +571,19 @@ class tncc(object):
         post_data = ''.join([ '%s=%s;' % (k, v) for k, v in post_attrs.iteritems()])
         self.r = self.br.open('https://' + self.vpn_host + self.path + 'hc/tnchcupdate.cgi', post_data)
 
-        # We have a new DSPREAUTH cookie
+        # set the inital host checker cookie to the first DSPREAUTH cookie
         self.set_cookie('DSPREAUTH_HC', self.find_cookie('DSPREAUTH').value)
-	
-	# parse the response to retrieve the periodic host checking interval
+
+        # parse the response to retrieve the periodic host checking interval
         response = self.parse_response()
-	self.hc_interval = int(response['msg'].split("interval=")[1].split("SESSION")[0])
+
+        # try to get the interval from the response, if not fallback with except
+        try:
+            self.hc_interval = int(response['msg'].split("interval=")[1].split("SESSION")[0])
+        except:
+            self.hc_interval = 10
 	
+        # We have a new DSPREAUTH cookie
         return self.find_cookie('DSPREAUTH')
 
 class tncc_server(object):
