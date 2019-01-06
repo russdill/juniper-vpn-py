@@ -618,7 +618,7 @@ class tncc_server(object):
             sock.send(resp.encode('ascii'))
         elif cmd == 'setcookie':
             self.tncc.set_cookie('DSPREAUTH_HC', args['Cookie'])
-            self.hc_scheduler.enter((60*(self.tncc.hc_interval-1)), 1, self.do_hc, (self.hc_scheduler,))
+            self.hc_scheduler.enter((60*(self.tncc.hc_interval)-1)), 1, self.do_hc, (self.hc_scheduler,))
             self.hc_scheduler.run()
             logging.info("==== Received DSPREAUTH Cookie, going into a timed Host Checker loop...")
 
