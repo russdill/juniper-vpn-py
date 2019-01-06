@@ -26,6 +26,10 @@ import pyasn1_modules.rfc2459
 import pyasn1.codec.der.decoder
 import xml.etree.ElementTree
 
+
+# import time, sched for period host checking
+import sched, time
+
 ssl._create_default_https_context = ssl._create_unverified_context
 
 debug = False
@@ -178,7 +182,7 @@ def encode_0ce5(s):
 def encode_0ce7(s, prefix):
     s += '\0'
     return encode_packet(0x0ce7, 1, struct.pack(">I" + str(len(s)) + "sx",
-                                prefix, s))
+                                prefix, str(s)))
 
 # 0cf0 - encapsulation
 def encode_0cf0(buf):
@@ -272,6 +276,9 @@ class tncc(object):
 
         self.deviceid = device_id
 
+        self.setup_mechanize()
+	
+    def setup_mechanize(self):
         self.br = mechanize.Browser()
 
         self.cj = cookielib.LWPCookieJar()
@@ -564,6 +571,18 @@ class tncc(object):
         post_data = ''.join([ '%s=%s;' % (k, v) for k, v in post_attrs.iteritems()])
         self.r = self.br.open('https://' + self.vpn_host + self.path + 'hc/tnchcupdate.cgi', post_data)
 
+        # set the inital host checker cookie to the first DSPREAUTH cookie
+        self.set_cookie('DSPREAUTH_HC', self.find_cookie('DSPREAUTH').value)
+
+        # parse the response to retrieve the periodic host checking interval
+        response = self.parse_response()
+
+        # try to get the interval from the response, if not fallback with except
+        try:
+            self.hc_interval = int(response['msg'].split("interval=")[1].split("SESSION")[0])
+        except:
+            self.hc_interval = 10
+	
         # We have a new DSPREAUTH cookie
         return self.find_cookie('DSPREAUTH')
 
@@ -571,6 +590,15 @@ class tncc_server(object):
     def __init__(self, s, t):
         self.sock = s
         self.tncc = t
+	self.hc_scheduler = sched.scheduler(time.time, time.sleep)
+
+
+    def do_hc(self, sc):
+        hc_cookie=self.tncc.find_cookie('DSPREAUTH_HC').value
+        self.tncc.setup_mechanize()
+	self.tncc.get_cookie(hc_cookie, 'url_default').value
+        logging.info("==== Next Host Checker scheduled...")
+	sc.enter((60*(self.tncc.hc_interval-1)), 1, self.do_hc, (sc,))
 
     def process_cmd(self):
         buf = sock.recv(1024).decode('ascii')
@@ -589,8 +617,10 @@ class tncc_server(object):
             resp = '200\n3\n%s\n\n' % cookie.value
             sock.send(resp.encode('ascii'))
         elif cmd == 'setcookie':
-            # FIXME: Support for periodic updates
-            dsid_value = args['Cookie']
+            self.tncc.set_cookie('DSPREAUTH_HC', args['Cookie'])
+            self.hc_scheduler.enter((60*(self.tncc.hc_interval)-1)), 1, self.do_hc, (self.hc_scheduler,))
+            self.hc_scheduler.run()
+            logging.info("==== Received DSPREAUTH Cookie, going into a timed Host Checker loop...")
 
 if __name__ == "__main__":
     vpn_host = sys.argv[1]
@@ -633,10 +663,9 @@ if __name__ == "__main__":
         dspreauth_value = sys.argv[2]
         dssignin_value = sys.argv[3]
         'TNCC ', dspreauth_value, dssignin_value
-        print t.get_cookie(dspreauth, dssignin).value
+        print t.get_cookie(dspreauth_value, dssignin_value).value
     else:
         sock = socket.fromfd(0, socket.AF_UNIX, socket.SOCK_SEQPACKET)
         server = tncc_server(sock, t)
         while True:
             server.process_cmd()
-
