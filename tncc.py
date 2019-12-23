@@ -194,7 +194,7 @@ def encode_0cf1(s):
 def encode_0cf3(i):
     return encode_packet(0x0013, 1, struct.pack("<I", i))
 
-class x509cert(object):
+class X509Cert:
 
     @staticmethod
     def decode_names(data):
@@ -258,7 +258,7 @@ class x509cert(object):
         self.not_after = self.decode_time(validity.getComponentByName("notAfter"))
         self.subject = self.decode_names(tbs.getComponentByName('subject'))
 
-class tncc(object):
+class TNCC:
     def __init__(self, vpn_host, device_id=None, funk=None, platform=None,
                  hostname=None, mac_addrs=[], certs=[],
                  user_agent=DEFAULT_USER_AGENT):
@@ -569,7 +569,7 @@ class tncc(object):
         # We have a new DSPREAUTH cookie
         return self.find_cookie('DSPREAUTH')
 
-class tncc_server(object):
+class TNCCServer:
     def __init__(self, s, t):
         self.sock = s
         self.tncc = t
@@ -620,7 +620,7 @@ if __name__ == "__main__":
     if 'TNCC_CERTS' in os.environ:
         now = datetime.datetime.now()
         for f in os.environ['TNCC_CERTS'].split(','):
-            cert = x509cert(f.strip())
+            cert = X509Cert(f.strip())
             if now < cert.not_before:
                 logging.warn('WARNING: %s is not yet valid', f)
             if now > cert.not_after:
@@ -635,7 +635,7 @@ if __name__ == "__main__":
     else:
         user_agent = DEFAULT_USER_AGENT
 
-    t = tncc(vpn_host, device_id, funk, platform, hostname, mac_addrs, certs)
+    t = TNCC(vpn_host, device_id, funk, platform, hostname, mac_addrs, certs)
 
     if len(sys.argv) == 4:
         dspreauth_value = sys.argv[2]
@@ -644,7 +644,7 @@ if __name__ == "__main__":
         print t.get_cookie(dspreauth, dssignin).value
     else:
         sock = socket.fromfd(0, socket.AF_UNIX, socket.SOCK_SEQPACKET)
-        server = tncc_server(sock, t)
+        server = TNCCServer(sock, t)
         while True:
             server.process_cmd()
 

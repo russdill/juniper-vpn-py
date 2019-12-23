@@ -64,7 +64,7 @@ def hotp(key):
     counter = int2beint64(int(time.time()) / 30)
     return dec(hmac.new(key, counter, hashlib.sha256).digest(), 6)
 
-class juniper_vpn(object):
+class JuniperVPN:
     def __init__(self, args):
         self.args = args
         self.fixed_password = args.password is not None
@@ -92,7 +92,7 @@ class juniper_vpn(object):
             if args.certs:
                 now = datetime.datetime.now()
                 for f in args.certs.split(','):
-                    cert = tncc.x509cert(f.strip())
+                    cert = tncc.X509Cert(f.strip())
                     if now < cert.not_before:
                         print('WARNING: {} is not yet valid'.format(f))
                     if now > cert.not_after:
@@ -184,7 +184,7 @@ class juniper_vpn(object):
 
         dssignin_cookie = self.find_cookie('DSSIGNIN')
         args = self.args
-        t = tncc.tncc(args.host, args.device_id, args.enable_funk,
+        t = tncc.TNCC(args.host, args.device_id, args.enable_funk,
                       args.platform, args.hostname, args.hwaddr, args.certs,
                       self.user_agent)
         self.cj.set_cookie(t.get_cookie(dspreauth_cookie, dssignin_cookie))
@@ -387,7 +387,7 @@ if __name__ == "__main__":
         print "--host and <action> are required parameters"
         sys.exit(1)
 
-    jvpn = juniper_vpn(args)
+    jvpn = JuniperVPN(args)
     try:
         jvpn.run()
     finally:
