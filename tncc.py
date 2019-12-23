@@ -79,7 +79,7 @@ def decode_0ce4(buf, indent):
 def decode_0ce5(buf, indent):
     s = struct.unpack(str(len(buf)) + "s", buf)[0]
     logging.debug('%scmd 0ce5 (string) %d bytes', indent, len(buf))
-    s = s.rstrip('\0')
+    s = s.rstrip(b'\0')
     logging.debug('%s', s)
     return s
 
@@ -88,11 +88,11 @@ def decode_0ce7(buf, indent):
     id, s = struct.unpack(">I" + str(len(buf) - 4) + "s", buf)
     logging.debug('%scmd 0ce7 (id %08x string) %d bytes', indent, id, len(buf))
 
-    if s.startswith('COMPRESSED:'):
-        typ, length, data = s.split(':', 2)
+    if s.startswith(b'COMPRESSED:'):
+        typ, length, data = s.split(b':', 2)
         s = zlib.decompress(data)
 
-    s = s.rstrip('\0')
+    s = s.rstrip(b'\0')
     logging.debug('%s', s)
     return (id, s)
 
@@ -108,7 +108,7 @@ def decode_0cf0(buf, indent):
 def decode_0cf1(buf, indent):
     s = struct.unpack(str(len(buf)) + "s", buf)[0]
     logging.debug('%scmd 0cf1 (string) %d bytes', indent, len(buf))
-    s = s.rstrip('\0')
+    s = s.rstrip(b'\0')
     logging.debug('%s', s)
     return s
 
@@ -178,7 +178,7 @@ def encode_0ce5(s):
 
 # 0ce7 - string with hex prefixer
 def encode_0ce7(s, prefix):
-    s += '\0'
+    s += b'\0'
     return encode_packet(0x0ce7, 1, struct.pack(">I" + str(len(s)) + "sx",
                                 prefix, s))
 
@@ -188,7 +188,7 @@ def encode_0cf0(buf):
 
 # 0cf1 - string without hex prefixer
 def encode_0cf1(s):
-    s += '\0'
+    s += b'\0'
     return encode_packet(0x0ce5, 1, struct.pack(str(len(s)) + "s", s))
 
 # 0cf3 - u32
@@ -314,16 +314,16 @@ class TNCC:
     def parse_response(self):
         # Read in key/token fields in HTTP response
         response = dict()
-        last_key = ''
+        last_key = b''
         for line in self.r.readlines():
             line = line.strip()
             # Note that msg is too long and gets wrapped, handle it special
-            if last_key == 'msg' and line:
-                response['msg'] += line
+            if last_key == b'msg' and line:
+                response[b'msg'] += line
             else:
-                key = ''
+                key = b''
                 try:
-                    key, val = line.split('=', 1)
+                    key, val = line.split(b'=', 1)
                 except ValueError:
                     pass
                 else:
@@ -353,7 +353,7 @@ class TNCC:
                                     d[key] = value
                             objs.append(d)
         p = ParamHTMLParser()
-        p.feed(msg_data)
+        p.feed(msg_data.decode('ascii'))
         p.close()
         return objs
 
@@ -379,11 +379,11 @@ class TNCC:
         # We don't know if the xml parser on the other end is fully complaint,
         # just format a string like it expects.
 
-        msg = "<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s' ClientType='Agentless'> " % self.platform
-        msg += "<ClientAttributes SequenceID='-1'> "
+        msg = b"<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s' ClientType='Agentless'> " % self.platform.encode('ascii')
+        msg += b"<ClientAttributes SequenceID='-1'> "
 
         def add_attr(key, val):
-            return "<Attribute Name='%s' Value='%s' />" % (key, val)
+            return b"<Attribute Name='%s' Value='%s' />" % (val.encode('ascii'), key.encode('ascii'))
 
         msg += add_attr('Platform', self.platform)
         if self.hostname:
@@ -392,24 +392,23 @@ class TNCC:
         for mac in self.mac_addrs:
             msg += add_attr(mac, 'MACAddress') # Reversed
 
-        msg += "</ClientAttributes>  </FunkMessage>"
+        msg += b"</ClientAttributes>  </FunkMessage>"
 
         return encode_0ce7(msg, MSG_FUNK_PLATFORM)
 
     def gen_funk_present(self):
-        msg = "<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s' ClientType='Agentless'> " % self.platform
-        msg += "<Present SequenceID='0'></Present>  </FunkMessage>"
+        msg = b"<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s' ClientType='Agentless'> " % self.platform.encode('ascii')
+        msg += b"<Present SequenceID='0'></Present>  </FunkMessage>"
         return encode_0ce7(msg, MSG_FUNK)
 
     def gen_funk_response(self, certs):
-
-        msg = "<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s' ClientType='Agentless'> " % self.platform
-        msg += "<ClientAttributes SequenceID='0'> "
-        msg += "<Attribute Name='Platform' Value='%s' />" % self.platform
+        msg = b"<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s' ClientType='Agentless'> " % self.platform
+        msg += b"<ClientAttributes SequenceID='0'> "
+        msg += b"<Attribute Name='Platform' Value='%s' />" % self.platform
         for name, value in certs.items():
-            msg += "<Attribute Name='%s' Value='%s' />" % (name, value.data.strip())
-            msg += "<Attribute Name='%s' Value='%s' />" % (name, value.data.strip())
-        msg += "</ClientAttributes>  </FunkMessage>"
+            msg += b"<Attribute Name='%s' Value='%s' />" % (name, value.data.strip())
+            msg += b"<Attribute Name='%s' Value='%s' />" % (name, value.data.strip())
+        msg += b"</ClientAttributes>  </FunkMessage>"
 
         return encode_0ce7(msg, MSG_FUNK)
 
@@ -432,10 +431,10 @@ class TNCC:
             }
         })
 
-        msg = ''
+        msg = b''
         for policy_key, policy_val in policy_blocks.items():
-            v = ''.join([ '%s=%s;' % (k, v) for k, v in policy_val.items()])
-            msg += '<parameter name="%s" value="%s">' % (policy_key, v)
+            v = b''.join([b'%s=%s;' % (k.encode('ascii'), v.encode('ascii')) for k, v in policy_val.items()])
+            msg += b'<parameter name="%s" value="%s">' % (policy_key.encode('ascii'), v)
 
         return encode_0ce7(msg, 0xa4c18)
 
@@ -448,16 +447,16 @@ class TNCC:
 
         # Try to determine on policy name whether the response should be OK
         # or NOTOK. Default to OK if we don't know, this may need updating.
-        msg = ''
+        msg = b''
         for policy in policies:
-            msg += '\npolicy:%s\nstatus:' % policy
+            msg += b'\npolicy:%s\nstatus:' % policy.encode('ascii')
             if 'Unsupported' in policy or 'Deny' in policy:
-                msg += 'NOTOK\nerror:Unknown error'
+                msg += b'NOTOK\nerror:Unknown error'
             elif 'Required' in policy:
-                msg += 'OK\n'
+                msg += b'OK\n'
             else:
                 # Default action
-                msg += 'OK\n'
+                msg += b'OK\n'
 
         return encode_0ce7(msg, MSG_POLICY)
 
@@ -476,19 +475,19 @@ class TNCC:
                 self.set_cookie('DSSIGNIN', dssignin)
 
         inner = self.gen_policy_request()
-        inner += encode_0ce7('policy request\x00v4', MSG_POLICY)
+        inner += encode_0ce7(b'policy request\x00v4', MSG_POLICY)
         if self.funk:
             inner += self.gen_funk_platform()
             inner += self.gen_funk_present()
 
-        msg_raw = encode_0013(encode_0ce4(inner) + encode_0ce5('Accept-Language: en') + encode_0cf3(1))
+        msg_raw = encode_0013(encode_0ce4(inner) + encode_0ce5(b'Accept-Language: en') + encode_0cf3(1))
         logging.debug('Sending packet -')
         decode_packet(msg_raw)
 
         post_attrs = {
             'connID': '0',
             'timestamp': '0',
-            'msg': base64.b64encode(msg_raw),
+            'msg': base64.b64encode(msg_raw).decode('ascii'),
             'firsttime': '1'
         }
         if self.deviceid:
@@ -502,7 +501,7 @@ class TNCC:
 
         # msg has the stuff we want, it's base64 encoded
         logging.debug('Receiving packet -')
-        msg_raw = base64.b64decode(response['msg'])
+        msg_raw = base64.b64decode(response[b'msg'])
         _1, _2, msg_decoded = decode_packet(msg_raw)
 
         # Within msg, there is a field of data
@@ -549,18 +548,18 @@ class TNCC:
             if cert_id not in certs:
                 logging.warn('Could not find certificate for %s', str(req_dns))
 
-        inner = ''
+        inner = b''
         if certs:
             inner += self.gen_funk_response(certs)
         inner += self.gen_policy_response(policy_objs)
 
-        msg_raw = encode_0013(encode_0ce4(inner) + encode_0ce5('Accept-Language: en'))
+        msg_raw = encode_0013(encode_0ce4(inner) + encode_0ce5(b'Accept-Language: en'))
         logging.debug('Sending packet -')
         decode_packet(msg_raw)
 
         post_attrs = {
             'connID': '1',
-            'msg': base64.b64encode(msg_raw),
+            'msg': base64.b64encode(msg_raw).decode('ascii'),
             'firsttime': '1'
         }
 

@@ -257,10 +257,10 @@ class JuniperVPN:
         # Yes, I want to terminate the existing connection
 
         # Fix up the broken HTML
-        html = self.r.read()
+        html = self.r.read().decode('utf-8')
         html = html.replace('onclick="checkSelected()",  name="postfixSID"',
                             'onclick="checkSelected()"  name="postfixSID"')
-        self.r.set_data(html)
+        self.r.set_data(html.encode('utf-8'))
         self.br.set_response(self.r)
 
         # Select the existing connection to close
@@ -289,8 +289,8 @@ class JuniperVPN:
         self.child = p
         if args.stdin is not None:
             stdin = args.stdin.replace('%DSID%', dsid)
-            stdin = stdin.replace('%HOST%', self.args.host)
-            p.communicate(input = stdin)
+            stdin = stdin.replace('%HOST%', args.host)
+            p.communicate(input=stdin.encode('ascii'))
         else:
             ret = p.wait()
         ret = p.returncode
