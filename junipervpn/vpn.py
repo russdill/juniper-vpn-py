@@ -65,6 +65,11 @@ def hotp(key):
     counter = int2beint64(int(time.time()) / 30)
     return dec(hmac.new(key, counter, hashlib.sha256).digest(), 6)
 
+class ActionError(Exception):
+    def __init__(self, msg, exit_code=1):
+        self.msg = msg
+        self.exit_code = exit_code
+
 class JuniperVPN:
     def __init__(self, args):
         self.args = args
@@ -203,8 +208,7 @@ class JuniperVPN:
             self.args.username = raw_input('Username: ')
         if self.args.password is None or self.last_action == 'login':
             if self.fixed_password:
-                print('Login failed (Invalid username or password?)')
-                sys.exit(1)
+                raise ActionError('Login failed (Invalid username or password?)')
             else:
                 self.args.password = getpass.getpass('Password: ')
                 self.needs_2factor = False
@@ -226,8 +230,7 @@ class JuniperVPN:
                 secondary_password = "".join([  self.args.pass_prefix,
                                                 self.pass_postfix])
             else:
-                print('Secondary password postfix not provided')
-                sys.exit(1)
+                raise ActionError('Secondary password postfix not provided')
             self.br.form['password#2'] = secondary_password
         if self.args.realm:
             self.br.form['realm'] = [self.args.realm]
@@ -238,8 +241,7 @@ class JuniperVPN:
         self.needs_2factor = True
         if self.args.oath:
             if self.last_action == 'key':
-                print('Login failed (Invalid OATH key)')
-                sys.exit(1)
+                raise ActionError('Login failed (Invalid OATH key)')
             self.key = hotp(self.args.oath)
         elif self.key is None:
             self.key = getpass.getpass('Two-factor key:')
@@ -310,7 +312,6 @@ class JuniperVPN:
                 self.child.wait()
             except OSError:
                 pass
-        sys.exit(0)
 
 def main():
     parser = argparse.ArgumentParser(conflict_handler='resolve')
@@ -390,5 +391,12 @@ def main():
     jvpn = JuniperVPN(args)
     try:
         jvpn.run()
+    # ctrl-C need not a backtrace to be displayed.
+    except KeyboardInterrupt:
+        print('User interrupt, stopping the VPN', file=sys.stderr)
+    # Errors raised by JuniperVPN() actions
+    except ActionError as e:
+        logging.error(e.msg)
+        sys.exit(e.exit_code)
     finally:
         jvpn.stop()
