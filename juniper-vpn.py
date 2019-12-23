@@ -81,10 +81,11 @@ class juniper_vpn(object):
                 for iface in netifaces.interfaces():
                     try:
                         mac = netifaces.ifaddresses(iface)[netifaces.AF_LINK][0]['addr']
-                        assert mac != '00:00:00:00:00:00'
-                        args.hwaddr.append(mac)
-                    except:
+                    except Exception:
                         pass
+                    else:
+                        if mac != '00:00:00:00:00:00':
+                            args.hwaddr.append(mac)
             else:
                 args.hwaddr = [n.strip() for n in args.hwaddr.split(',')]
 
@@ -362,21 +363,19 @@ if __name__ == "__main__":
             if args.__dict__[arg] is None:
                 try:
                     args.__dict__[arg] = config.get('vpn', arg)
-                except:
+                except configparser.NoOptionError:
                     pass
 
         if not args.enable_funk:
             try:
                 val = config.get('vpn', 'enable_funk').lower()
-                if val in ['true', '1', 'yes', 'enable', 'on']:
-                    val = True
-                elif val in ['false', '0', 'no', 'disable', 'off']:
-                    val = False
-                else:
-                    raise ValueError("Unable to parse funk argument", val)
-                args.enable_funk = val
-            except:
+            except configparser.NoOptionError:
                 pass
+            else:
+                if val in ['true', '1', 'yes', 'enable', 'on']:
+                    args.enable_funk = True
+                elif val in ['false', '0', 'no', 'disable', 'off']:
+                    args.enable_funk = False
 
     if args.action is None:
         args.action = []
