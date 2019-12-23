@@ -199,15 +199,12 @@ class x509cert(object):
     @staticmethod
     def decode_names(data):
         ret = dict()
-        for i in range(0, len(data)):
-            for attr in data[i]:
+        for attrs in data:
+            for attr in attrs:
                 type = str(attr.getComponentByPosition(0).getComponentByName('type'))
                 value = str(attr.getComponentByPosition(0).getComponentByName('value'))
                 value = str(pyasn1.codec.der.decoder.decode(value)[0])
-                try:
-                    ret[type].append(value)
-                except:
-                    ret[type] = [value]
+                ret.setdefault(type, []).append(value)
         return ret
 
     @staticmethod
@@ -319,7 +316,7 @@ class tncc(object):
         for line in self.r.readlines():
             line = line.strip()
             # Note that msg is too long and gets wrapped, handle it special
-            if last_key == 'msg' and len(line):
+            if last_key == 'msg' and line:
                 response['msg'] += line
             else:
                 key = ''
@@ -576,14 +573,14 @@ class tncc_server(object):
 
     def process_cmd(self):
         buf = sock.recv(1024).decode('ascii')
-        if not len(buf):
+        if not buf:
             sys.exit(0)
         cmd, buf = buf.split('\n', 1)
         cmd = cmd.strip()
         args = dict()
         for n in buf.split('\n'):
             n = n.strip()
-            if len(n):
+            if n:
                 key, val = n.strip().split('=', 1)
                 args[key] = val
         if cmd == 'start':
