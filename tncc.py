@@ -1,24 +1,23 @@
-#!/usr/bin/env python2.7
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 from __future__ import print_function
 
 import sys
 import os
 import logging
-import StringIO
+import io
 import mechanize
-import cookielib
+import http.cookiejar
 import struct
 import socket
 import ssl
 import base64
 import collections
 import zlib
-import HTMLParser
+import html.parser
 import socket
 import netifaces
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import platform
 import json
 import datetime
@@ -249,7 +248,7 @@ class X509Cert:
     def __init__(self, cert_file):
         with open(cert_file, 'r') as f:
             self.data = f.read()
-        f = StringIO.StringIO(self.data)
+        f = io.StringIO(self.data)
         substrate = pyasn1_modules.pem.readPemFromFile(f)
         cert = pyasn1.codec.der.decoder.decode(substrate, pyasn1_modules.rfc2459.Certificate())[0]
         tbs = cert.getComponentByName('tbsCertificate')
@@ -276,7 +275,7 @@ class TNCC:
 
         self.br = mechanize.Browser()
 
-        self.cj = cookielib.LWPCookieJar()
+        self.cj = http.cookiejar.LWPCookieJar()
         self.br.set_cookiejar(self.cj)
 
         # Browser options
@@ -304,7 +303,7 @@ class TNCC:
         return None
 
     def set_cookie(self, name, value):
-        cookie = cookielib.Cookie(version=0, name=name, value=value,
+        cookie = http.cookiejar.Cookie(version=0, name=name, value=value,
                 port=None, port_specified=False, domain=self.vpn_host,
                 domain_specified=True, domain_initial_dot=False, path=self.path,
                 path_specified=True, secure=True, expires=None, discard=True,
@@ -335,7 +334,7 @@ class TNCC:
         # The decompressed data is HTMLish, decode it. The value="" of each
         # tag is the data we want.
         objs = []
-        class ParamHTMLParser(HTMLParser.HTMLParser):
+        class ParamHTMLParser(html.parser.HTMLParser):
             def handle_starttag(self, tag, attrs):
                 if tag.lower() == 'param':
                     for key, value in attrs:
@@ -647,4 +646,3 @@ if __name__ == "__main__":
         server = TNCCServer(sock, t)
         while True:
             server.process_cmd()
-

@@ -1,11 +1,10 @@
-#!/usr/bin/env python2.7
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 from __future__ import print_function
 
 import subprocess
 import mechanize
-import cookielib
+import http.cookiejar
 import getpass
 import sys
 import os
@@ -109,7 +108,7 @@ class JuniperVPN:
 
         self.br = mechanize.Browser()
 
-        self.cj = cookielib.LWPCookieJar()
+        self.cj = http.cookiejar.LWPCookieJar()
         self.br.set_cookiejar(self.cj)
 
         # Browser options
