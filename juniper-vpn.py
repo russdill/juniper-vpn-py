@@ -295,7 +295,7 @@ class juniper_vpn(object):
             self.cj.clear(self.args.host, '/', 'DSID')
             self.r = self.br.open(self.r.geturl())
 
-    def stop(self, signum, frame):
+    def stop(self):
         if self.child:
             print "Interrupt received, ending external program..."
             # Use SIGINT due to openconnect behavior where SIGINT will
@@ -386,5 +386,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     jvpn = juniper_vpn(args)
-    signal.signal(signal.SIGINT, jvpn.stop)
-    jvpn.run()
+    try:
+        jvpn.run()
+    finally:
+        jvpn.stop()
