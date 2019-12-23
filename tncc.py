@@ -120,7 +120,7 @@ def decode_0cf3(buf, indent):
 def decode_packet(buf, indent=""):
     cmd, _1, _2, length, _3 = struct.unpack(">IBBHI", buf[:12])
     if length < 12:
-        raise Exception("Invalid packet, cmd %04x, _1 %02x, _2 %02x, length %d" % (cmd, _1, _2, length))
+        raise ValueError("Invalid packet, cmd %04x, _1 %02x, _2 %02x, length %d" % (cmd, _1, _2, length))
 
     data = buf[12:length]
 
@@ -232,7 +232,7 @@ class x509cert(object):
         elif tm.getName() == 'utcTime':
             formats = ['%y%m%d%H%M%S', '%y%m%d%H%M']
         else:
-            raise Exception('Unknown time format')
+            raise ValueError('Unknown time format')
 
         for fmt in formats:
             try:
@@ -242,7 +242,7 @@ class x509cert(object):
             except:
                 pass
 
-        raise Exception('Could not parse certificate time')
+        raise ValueError('Could not parse certificate time')
 
     def __init__(self, cert_file):
         with open(cert_file, 'r') as f:
@@ -532,8 +532,9 @@ class tncc(object):
                             if dn_name == 'IssuerDN':
                                 assert val in cert.issuer[name]
                             else:
-                                logging.warn('Unknown DN type %s', str(dn_name))
-                                raise Exception()
+                                msg = 'Unknown DN type {}'.format(dn_name)
+                                logging.warn(msg)
+                                raise ValueError(msg)
                         except:
                             fail = True
                             break
