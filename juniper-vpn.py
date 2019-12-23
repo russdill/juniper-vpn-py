@@ -183,9 +183,10 @@ class juniper_vpn(object):
             raise Exception('Could not find DSPREAUTH key for host checker')
 
         dssignin_cookie = self.find_cookie('DSSIGNIN')
-        t = tncc.tncc(self.args.host, args.device_id, args.enable_funk,
+        args = self.args
+        t = tncc.tncc(args.host, args.device_id, args.enable_funk,
                       args.platform, args.hostname, args.hwaddr, args.certs,
-                      self.user_agent);
+                      self.user_agent)
         self.cj.set_cookie(t.get_cookie(dspreauth_cookie, dssignin_cookie))
 
         self.r = self.br.open(self.r.geturl())
@@ -273,8 +274,9 @@ class juniper_vpn(object):
 
         dsid = self.find_cookie('DSID').value
         action = []
-        for arg in self.args.action:
-            arg = arg.replace('%DSID%', dsid).replace('%HOST%', self.args.host)
+        args = self.args
+        for arg in args.action:
+            arg = arg.replace('%DSID%', dsid).replace('%HOST%', args.host)
             action.append(arg)
 
         p = subprocess.Popen(action, stdin=subprocess.PIPE)
@@ -292,7 +294,7 @@ class juniper_vpn(object):
 
         # Openconnect specific
         if ret == 2:
-            self.cj.clear(self.args.host, '/', 'DSID')
+            self.cj.clear(args.host, '/', 'DSID')
             self.r = self.br.open(self.r.geturl())
 
     def stop(self):
