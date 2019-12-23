@@ -9,7 +9,6 @@ import sys
 import os
 import ssl
 import argparse
-import atexit
 import signal
 import ConfigParser
 import time
