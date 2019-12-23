@@ -51,7 +51,7 @@ def truncated_value(h):
 def dec(h,p):
     v = truncated_value(h)
     v = v % (10**p)
-    return '%0*d' % (p, v)
+    return '{v:0>{p}}'.format(p=p, v=v)
 
 def int2beint64(i):
     hex_counter = hex(long(i))[2:-1]
@@ -94,9 +94,9 @@ class juniper_vpn(object):
                 for f in args.certs.split(','):
                     cert = tncc.x509cert(f.strip())
                     if now < cert.not_before:
-                        print 'WARNING: %s is not yet valid' % f
+                        print('WARNING: {} is not yet valid'.format(f))
                     if now > cert.not_after:
-                        print 'WARNING: %s is expired' % f
+                        print('WARNING: {} is expired'.format(f))
                     certs.append(cert)
                 args.certs = [n.strip() for n in args.certs.split(',')]
             args.certs = certs
@@ -267,7 +267,7 @@ class juniper_vpn(object):
         now = time.time()
         delay = 10.0 - (now - self.last_connect)
         if delay > 0:
-            print 'Waiting %.0f...' % (delay)
+            print('Waiting {:.0f}...'.format(delay))
             time.sleep(delay)
         self.last_connect = time.time();
 
