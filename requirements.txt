@@ -1,0 +1,6 @@
+# These versions work with `4e9c6ee` commit
+mechanize==0.3.6
+netifaces==0.10.6
+pycurl==7.43.0.1
+pyasn1-modules==0.2.1
+urlgrabber==3.10.2

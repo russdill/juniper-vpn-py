@@ -196,12 +196,15 @@ class juniper_vpn(object):
         # we could be sitting on the two factor key prompt later on waiting
         # on the user.
 
+        # Enter username/password
+        if not self.args.username:
+            self.args.username = raw_input('Username: ')
         if self.args.password is None or self.last_action == 'login':
             if self.fixed_password:
                 print 'Login failed (Invalid username or password?)'
                 sys.exit(1)
             else:
-                self.args.password = getpass.getpass('Password:')
+                self.args.password = getpass.getpass('Password: ')
                 self.needs_2factor = False
         if self.args.pass_prefix:
             self.pass_postfix = getpass.getpass("Secondary password postfix:")
@@ -213,7 +216,6 @@ class juniper_vpn(object):
         else:
             self.key = None
 
-        # Enter username/password
         self.br.select_form(nr=0)
         self.br.form['username'] = self.args.username
         self.br.form['password'] = self.args.password
@@ -381,8 +383,8 @@ if __name__ == "__main__":
     elif not isinstance(args.action, list):
         args.action = shlex.split(args.action)
 
-    if args.username == None or args.host == None or args.action == []:
-        print "--user, --host, and <action> are required parameters"
+    if args.host == None or args.action == []:
+        print "--host and <action> are required parameters"
         sys.exit(1)
 
     jvpn = juniper_vpn(args)
