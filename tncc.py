@@ -16,7 +16,6 @@ import zlib
 import HTMLParser
 import socket
 import netifaces
-import urlgrabber
 import urllib2
 import platform
 import json
