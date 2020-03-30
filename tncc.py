@@ -1,6 +1,8 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+
 import sys
 import os
 import logging
@@ -404,7 +406,7 @@ class TNCC:
         msg = "<FunkMessage VendorID='2636' ProductID='1' Version='1' Platform='%s' ClientType='Agentless'> " % self.platform
         msg += "<ClientAttributes SequenceID='0'> "
         msg += "<Attribute Name='Platform' Value='%s' />" % self.platform
-        for name, value in certs.iteritems():
+        for name, value in certs.items():
             msg += "<Attribute Name='%s' Value='%s' />" % (name, value.data.strip())
             msg += "<Attribute Name='%s' Value='%s' />" % (name, value.data.strip())
         msg += "</ClientAttributes>  </FunkMessage>"
@@ -431,8 +433,8 @@ class TNCC:
         })
 
         msg = ''
-        for policy_key, policy_val in policy_blocks.iteritems():
-            v = ''.join([ '%s=%s;' % (k, v) for k, v in policy_val.iteritems()])
+        for policy_key, policy_val in policy_blocks.items():
+            v = ''.join([ '%s=%s;' % (k, v) for k, v in policy_val.items()])
             msg += '<parameter name="%s" value="%s">' % (policy_key, v)
 
         return encode_0ce7(msg, 0xa4c18)
@@ -492,7 +494,7 @@ class TNCC:
         if self.deviceid:
             post_attrs['deviceid'] = self.deviceid
 
-        post_data = ''.join([ '%s=%s;' % (k, v) for k, v in post_attrs.iteritems()])
+        post_data = ''.join([ '%s=%s;' % (k, v) for k, v in post_attrs.items()])
         self.r = self.br.open('https://' + self.vpn_host + self.path + 'hc/tnchcupdate.cgi', post_data)
 
         # Parse the data returned into a key/value dict
@@ -519,17 +521,17 @@ class TNCC:
             for obj in policy_objs:
                 if 'policy' in obj:
                     logging.debug('policy %s', obj['policy'])
-                    for key, val in obj.iteritems():
+                    for key, val in obj.items():
                         if key != 'policy':
                             logging.debug('\t%s %s', key, val)
 
         # Try to locate the required certificates
         certs = dict()
-        for cert_id, req_dns in req_certs.iteritems():
+        for cert_id, req_dns in req_certs.items():
             for cert in self.avail_certs:
                 fail = False
-                for dn_name, dn_vals in req_dns.iteritems():
-                    for name, val in dn_vals.iteritems():
+                for dn_name, dn_vals in req_dns.items():
+                    for name, val in dn_vals.items():
                         if dn_name == 'IssuerDN':
                             if val not in cert.issuer[name]:
                                 fail = True
@@ -562,7 +564,7 @@ class TNCC:
             'firsttime': '1'
         }
 
-        post_data = ''.join([ '%s=%s;' % (k, v) for k, v in post_attrs.iteritems()])
+        post_data = ''.join([ '%s=%s;' % (k, v) for k, v in post_attrs.items()])
         self.r = self.br.open('https://' + self.vpn_host + self.path + 'hc/tnchcupdate.cgi', post_data)
 
         # We have a new DSPREAUTH cookie
@@ -640,7 +642,7 @@ if __name__ == "__main__":
         dspreauth_value = sys.argv[2]
         dssignin_value = sys.argv[3]
         'TNCC ', dspreauth_value, dssignin_value
-        print t.get_cookie(dspreauth, dssignin).value
+        print(t.get_cookie(dspreauth, dssignin).value)
     else:
         sock = socket.fromfd(0, socket.AF_UNIX, socket.SOCK_SEQPACKET)
         server = TNCCServer(sock, t)
