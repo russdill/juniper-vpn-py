@@ -17,13 +17,12 @@ import shlex
 import platform
 import socket
 import datetime
+import logging
 
 import mechanize
 import netifaces
 
 from junipervpn import tncc
-
-debug = False
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -71,8 +70,9 @@ class ActionError(Exception):
         self.exit_code = exit_code
 
 class JuniperVPN:
-    def __init__(self, args):
+    def __init__(self, args, verbose=False):
         self.args = args
+        self.verbose = verbose
         self.fixed_password = args.password is not None
         self.last_connect = 0
 
@@ -100,9 +100,9 @@ class JuniperVPN:
                 for f in args.certs.split(','):
                     cert = tncc.X509Cert(f.strip())
                     if now < cert.not_before:
-                        print('WARNING: {} is not yet valid'.format(f))
+                        logging.warning('{} is not yet valid'.format(f))
                     if now > cert.not_after:
-                        print('WARNING: {} is expired'.format(f))
+                        logging.warning('{} is expired'.format(f))
                     certs.append(cert)
                 args.certs = [n.strip() for n in args.certs.split(',')]
             args.certs = certs
@@ -122,8 +122,7 @@ class JuniperVPN:
         self.br.set_handle_refresh(mechanize._http.HTTPRefreshProcessor(),
                               max_time=1)
 
-        # Want debugging messages?
-        if debug:
+        if self.verbose:
             self.br.set_debug_http(True)
             self.br.set_debug_redirects(True)
             self.br.set_debug_responses(True)
@@ -192,7 +191,7 @@ class JuniperVPN:
         args = self.args
         t = tncc.TNCC(args.host, args.device_id, args.enable_funk,
                       args.platform, args.hostname, args.hwaddr, args.certs,
-                      self.user_agent)
+                      self.user_agent, verbose=self.verbose)
         self.cj.set_cookie(t.get_cookie(dspreauth_cookie, dssignin_cookie))
 
         self.r = self.br.open(self.r.geturl())
@@ -271,7 +270,7 @@ class JuniperVPN:
         now = time.time()
         delay = 10.0 - (now - self.last_connect)
         if delay > 0:
-            print('Waiting {:.0f}...'.format(delay))
+            logging.info('Waiting {:.0f}...'.format(delay))
             time.sleep(delay)
         self.last_connect = time.time();
 
@@ -302,7 +301,7 @@ class JuniperVPN:
 
     def stop(self):
         if self.child:
-            print("Interrupt received, ending external program...")
+            logging.info("Interrupt received, ending external program...")
             # Use SIGINT due to openconnect behavior where SIGINT will
             # run the vpnc-compatible script to clean up changes but
             # not upon SIGTERM.
@@ -346,7 +345,8 @@ def main():
     parser.add_argument('action', nargs=argparse.REMAINDER,
                         metavar='<action> [<args...>]',
                         help='External command')
-
+    parser.add_argument('--verbose', action='store_true',
+                        help="Increase verbosity")
     args = parser.parse_args()
     args.__dict__['password'] = None
 
@@ -355,6 +355,8 @@ def main():
 
     if not len(args.action):
         args.action = None
+
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
     if args.config is not None:
         config = configparser.RawConfigParser()
@@ -387,12 +389,12 @@ def main():
     if args.host == None or args.action == []:
         parser.error("--host and <action> are required parameters")
 
-    jvpn = JuniperVPN(args)
+    jvpn = JuniperVPN(args, verbose=args.verbose)
     try:
         jvpn.run()
     # ctrl-C need not a backtrace to be displayed.
     except KeyboardInterrupt:
-        print('User interrupt, stopping the VPN', file=sys.stderr)
+        logging.info('User interrupt, stopping the VPN')
     # Errors raised by JuniperVPN() actions
     except ActionError as e:
         logging.error(e.msg)
