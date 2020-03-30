@@ -10,7 +10,6 @@ import os
 import ssl
 import argparse
 import signal
-import ConfigParser
 import time
 import binascii
 import hmac
@@ -21,6 +20,11 @@ import platform
 import socket
 import netifaces
 import datetime
+
+try:
+    import configparser
+except ImportError: # `configparser` was renamed in Python 3 from `ConfigParser`
+    import ConfigParser as configparser
 
 debug = False
 
@@ -356,7 +360,7 @@ if __name__ == "__main__":
         args.action = None
 
     if args.config is not None:
-        config = ConfigParser.RawConfigParser()
+        config = configparser.RawConfigParser()
         config.read(args.config)
         for arg in ['username', 'host', 'password', 'oath', 'action', 'stdin',
                     'hostname', 'platform', 'hwaddr', 'certs', 'device_id',
