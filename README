@@ -1,3 +1,23 @@
+Installation
+============
+
+In a Python virtual environment to avoid conflicts with packages from the
+distribution's package manager:
+
+# pycurl needs some binaries to be provided by the system
+$ sudo apt install libcurl4-openssl-dev libssl-dev python-dev
+
+$ python3 -m venv myvenv
+$ source myvenv/bin/activate
+
+# Wheel might be needed to install pycurl
+$ python3 -m pip install wheel
+$ python3 -m pip install juniper-vpn-py
+
+Once that venv activated, the "juniper-vpn.py" binary will be in the path.
+NOTE: DO NOT USE ./juniper-vpn.py shim distributed in the git repository, use
+the shim created by pip in the standard location.
+
 Connecting to a Juniper VPN requires the generation of a DSID token.
 Generating this token involves authentication and host checking. The
 juniper-vpn.py script performs authentication, and the tncc.py script
