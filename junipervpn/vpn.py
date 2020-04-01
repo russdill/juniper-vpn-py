@@ -313,14 +313,14 @@ class JuniperVPN:
                 pass
 
 def main():
-    parser = argparse.ArgumentParser(conflict_handler='resolve')
+    parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('-h', '--host', type=str,
                         help='VPN host name')
     parser.add_argument('-r', '--realm', type=str,
                         help='VPN realm')
     parser.add_argument('-u', '--username', type=str,
                         help='User name')
-    parser.add_argument('-p', '--pass_prefix', type=str,
+    parser.add_argument('--pass_prefix', type=str,
                         help="Secondary password prefix")
     parser.add_argument('-o', '--oath', type=str,
                         help='OATH key for two factor authentication (hex)')
@@ -347,6 +347,8 @@ def main():
                         help='External command')
     parser.add_argument('--verbose', action='store_true',
                         help="Increase verbosity")
+    parser.add_argument('--help', action='help',
+                        help="Show help")
     args = parser.parse_args()
     args.__dict__['password'] = None
 
