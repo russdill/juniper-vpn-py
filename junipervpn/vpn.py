@@ -385,8 +385,7 @@ def main():
         args.action = shlex.split(args.action)
 
     if args.host == None or args.action == []:
-        print("--host and <action> are required parameters")
-        sys.exit(1)
+        parser.error("--host and <action> are required parameters")
 
     jvpn = JuniperVPN(args)
     try:
