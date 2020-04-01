@@ -326,7 +326,7 @@ def main():
     parser.add_argument('-o', '--oath', type=str,
                         help='OATH key for two factor authentication (hex)')
     parser.add_argument('-c', '--config', type=str,
-                        help='Config file')
+                        help='Config file, in INI style. All CLI options are also available as keys under a [vpn] section.')
     parser.add_argument('-s', '--stdin', type=str,
                         help="String to pass to action's stdin")
     parser.add_argument('-d', '--device-id', type=str,
