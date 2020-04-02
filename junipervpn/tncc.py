@@ -29,9 +29,6 @@ import netifaces
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-debug = False
-logging.basicConfig(stream=sys.stderr, level=logging.DEBUG if debug else logging.INFO)
-
 MSG_POLICY = 0x58316
 MSG_FUNK_PLATFORM = 0x58301
 MSG_FUNK = 0xa4c01
@@ -262,7 +259,8 @@ class X509Cert:
 class TNCC:
     def __init__(self, vpn_host, device_id=None, funk=None, platform=None,
                  hostname=None, mac_addrs=[], certs=[],
-                 user_agent=DEFAULT_USER_AGENT):
+                 user_agent=DEFAULT_USER_AGENT, verbose=False):
+        self.verbose = verbose
         self.vpn_host = vpn_host
         self.path = '/dana-na/'
 
@@ -290,7 +288,7 @@ class TNCC:
                               max_time=1)
 
         # Want debugging messages?
-        if debug:
+        if verbose:
             self.br.set_debug_http(True)
             self.br.set_debug_redirects(True)
             self.br.set_debug_responses(True)
@@ -516,7 +514,7 @@ class TNCC:
             elif str_id == MSG_FUNK:
                 req_certs = self.parse_funk_response(sub_str)
 
-        if debug:
+        if self.verbose:
             for obj in policy_objs:
                 if 'policy' in obj:
                     logging.debug('policy %s', obj['policy'])
@@ -595,6 +593,8 @@ class TNCCServer:
             dsid_value = args['Cookie']
 
 def main():
+    logging.basicConfig(level=logging.INFO)
+
     vpn_host = sys.argv[1]
 
     funk = 'TNCC_FUNK' in os.environ and os.environ['TNCC_FUNK'] != '0'
