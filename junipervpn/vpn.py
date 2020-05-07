@@ -18,6 +18,7 @@ import platform
 import socket
 import datetime
 import logging
+from collections import defaultdict
 
 import mechanize
 import netifaces
@@ -325,7 +326,7 @@ def main():
     parser.add_argument('-o', '--oath', type=str,
                         help='OATH key for two factor authentication (hex)')
     parser.add_argument('-c', '--config', type=str,
-                        help='Config file')
+                        help='Config file, in INI style. All CLI options are also available as keys under a [vpn] section.')
     parser.add_argument('-s', '--stdin', type=str,
                         help="String to pass to action's stdin")
     parser.add_argument('-d', '--device-id', type=str,
@@ -350,45 +351,55 @@ def main():
     parser.add_argument('--help', action='help',
                         help="Show help")
     args = parser.parse_args()
-    args.__dict__['password'] = None
 
-    if len(args.action) and args.action[0] == '--':
-        args.action = args.action[1:]
-
-    if not len(args.action):
-        args.action = None
-
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-
+    # Load the conf file and use it as defaults, so it can be overridden by the
+    # command line
     if args.config is not None:
         config = configparser.RawConfigParser()
         config.read(args.config)
-        for arg in ['username', 'host', 'password', 'oath', 'action', 'stdin',
-                    'hostname', 'platform', 'hwaddr', 'certs', 'device_id',
-                    'user_agent', 'pass_prefix', 'realm']:
-            if args.__dict__[arg] is None:
-                try:
-                    args.__dict__[arg] = config.get('vpn', arg)
-                except configparser.NoOptionError:
-                    pass
+        vpn_config = config['vpn']
 
-        if not args.enable_funk:
-            try:
-                val = config.get('vpn', 'enable_funk').lower()
-            except configparser.NoOptionError:
-                pass
-            else:
-                if val in ['true', '1', 'yes', 'enable', 'on']:
-                    args.enable_funk = True
-                elif val in ['false', '0', 'no', 'disable', 'off']:
-                    args.enable_funk = False
+        identity = lambda x: x
+        conf_handlers = defaultdict(
+            # default
+            lambda: (vpn_config.get, identity),
 
-    if args.action is None:
-        args.action = []
-    elif not isinstance(args.action, list):
-        args.action = shlex.split(args.action)
+            action=(vpn_config.get, shlex.split),
+            verbose=(vpn_config.getboolean, identity),
+            enable_funk=(vpn_config.getboolean, identity),
+        )
 
-    if args.host == None or args.action == []:
+        def parse(arg):
+            from_conf, post_process = conf_handlers[arg]
+            return post_process(from_conf(arg))
+
+        parsed_conf = {
+            arg: parse(arg)
+            for arg in vpn_config
+        }
+
+        conf_action = parsed_conf.get('action')
+
+        # Update default with conf content and reparse, so that the CLI can
+        # override the conf settings
+        parser.set_defaults(**parsed_conf)
+        args = parser.parse_args()
+
+        # Even with a default, argparse.REMAINDER will give an empty list so we
+        # need to explicitly take the one from the conf:
+        # https://bugs.python.org/issue35495
+        if conf_action and not args.action:
+            args.action = conf_action
+
+    # DO NOT USE args BEFORE THIS POINT, otherwise the conf file will be
+    # ignored
+    args.password = None
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+
+    if args.action and args.action[0] == '--':
+        args.action = args.action[1:]
+
+    if args.host is None or not args.action:
         parser.error("--host and <action> are required parameters")
 
     jvpn = JuniperVPN(args, verbose=args.verbose)
