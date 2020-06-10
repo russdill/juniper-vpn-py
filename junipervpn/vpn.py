@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import subprocess
+import threading
 import http.cookiejar
 import getpass
 import sys
@@ -18,6 +19,8 @@ import platform
 import socket
 import datetime
 import logging
+import contextlib
+import math
 from collections import defaultdict
 
 import mechanize
@@ -65,6 +68,126 @@ def hotp(key):
     counter = int2beint64(int(time.time()) / 30)
     return dec(hmac.new(key, counter, hashlib.sha256).digest(), 6)
 
+
+class NetworkMonitorThread(threading.Thread):
+    """
+    :param rate: Number of packets emitted per second
+    :type rate: float
+
+    :param on_disconnect: Callable to call when a network disconnection is
+        detected.
+    :type on_disconnect: collections.abc.Callable
+
+    :param hosts: List of hosts to ping. The first host is tried, and then the
+        others in order until a pingable host is found.
+    :type hosts: list(str)
+
+    :param ping: Ping command to use.
+    :type ping: str
+
+    :param ping_rate: Ping rate in packet/s
+    :type ping_rate: float
+
+    :param ping_duration: Duration of each ping command. A short-enough interval is
+        preferred, so that the script can react quickly to network outage
+    :type ping_duration: int
+
+    :param connect_timeout: Time to wait in seconds between reconnection
+        attempts.
+    :type connect_timeout: float
+
+    :param daemon: Passed to threading.Thread.
+    :type daemon: bool
+    """
+    def __init__(self,
+        on_disconnect,
+        hosts=['8.8.8.8'],
+        ping='ping',
+        connect_timeout=10,
+        ping_rate=1,
+        ping_duration=2,
+        daemon=True,
+    ):
+        self.hosts = hosts
+        self.ping = ping
+        self.ping_rate = ping_rate
+        self.ping_duration = ping_duration
+        self.connect_timeout = connect_timeout
+        self.on_disconnect = on_disconnect
+
+        self._stop = threading.Event()
+        super().__init__(name='ping_network_monitor', daemon=daemon)
+
+    def run(self):
+        interval = 1 / self.ping_rate
+        # interval < 0.2 is not allowed as regular user, so best avoided
+        interval = interval if interval >= 0.2 else 0.2
+        deadline = int(math.ceil(self.ping_duration))
+
+        def ping():
+            # Ping until either one host works, or raise the last exception
+            # otherwise
+            for host in self.hosts:
+                cmd = [self.ping, '-q', '-w', str(deadline), '-i', str(interval), '--', host]
+                # Separate ping output by at least an empty line
+                print()
+                try:
+                    subprocess.check_call(cmd)
+                except subprocess.CalledProcessError as e:
+                    logging.debug('Failed to ping {}: {}'.format(host, e))
+                    last_excep = e
+                else:
+                    return None
+
+            raise last_excep
+
+        # Exit the thread if it needs to be stopped.
+        # It is executed before attempting any long command
+        def check_stop():
+            if self._stop.is_set():
+                sys.exit(0)
+
+        def sleep():
+            time.sleep(self.connect_timeout)
+
+        get_time = time.monotonic
+
+        check_stop()
+
+        # Sleep before entering the loop, to give time to the VPN to connect
+        # for the first time. Otherwise, we risk detecting a dead connection
+        # and immediately try to reconnect before it had a chance to establish
+        # the connection
+        sleep()
+
+        start_time = get_time()
+        issues_nr = 0
+
+        while True:
+            check_stop()
+            try:
+                ping()
+            except subprocess.CalledProcessError:
+                issues_nr += 1
+                delta = get_time() - start_time
+                # Avoid division by 0
+                delta = delta if delta else 1
+                delta_h = delta / 3600
+                issues_per_h = issues_nr / delta_h
+
+                logging.info("Connection seems to have died (#{issues}, {issues_per_h} issues per hour)".format(
+                    issues=issues_nr,
+                    issues_per_h=math.ceil(issues_per_h),
+                ))
+                check_stop()
+                self.on_disconnect()
+                check_stop()
+                sleep()
+
+    def stop(self):
+        self._stop.set()
+
+
 class ActionError(Exception):
     def __init__(self, msg, exit_code=1):
         self.msg = msg
@@ -76,6 +199,11 @@ class JuniperVPN:
         self.verbose = verbose
         self.fixed_password = args.password is not None
         self.last_connect = 0
+        self.monitor = None
+
+        self.monitor_hosts = args.ping_host
+        self.monitor_connect_timeout = args.connect_timeout
+        self.monitor_ping_rate = args.ping_rate
 
         if args.enable_funk:
             if not args.platform:
@@ -284,12 +412,15 @@ class JuniperVPN:
 
         p = subprocess.Popen(action, stdin=subprocess.PIPE)
         self.child = p
-        if args.stdin is not None:
-            stdin = args.stdin.replace('%DSID%', dsid)
-            stdin = stdin.replace('%HOST%', args.host)
-            p.communicate(input=stdin.encode('ascii'))
-        else:
-            ret = p.wait()
+
+        with self.monitor_cm():
+            if args.stdin is not None:
+                stdin = args.stdin.replace('%DSID%', dsid)
+                stdin = stdin.replace('%HOST%', args.host)
+                p.communicate(input=stdin.encode('ascii'))
+            else:
+                ret = p.wait()
+
         ret = p.returncode
         # Reset child to None so we don't try to kill a completed
         # process:
@@ -299,6 +430,47 @@ class JuniperVPN:
         if ret == 2:
             self.cj.clear(args.host, '/', 'DSID')
             self.r = self.br.open(self.r.geturl())
+
+    def start_monitor(self):
+        self.stop_monitor()
+
+        # If rate != 0, start the monitor
+        if self.monitor_ping_rate:
+            logging.info("Starting network monitoring...")
+            monitor = NetworkMonitorThread(
+                on_disconnect=self.reconnect,
+                hosts=self.monitor_hosts,
+                connect_timeout=self.monitor_connect_timeout,
+                ping_rate=self.monitor_ping_rate,
+            )
+            monitor.start()
+        else:
+            monitor = None
+
+        self.monitor = monitor
+
+    def stop_monitor(self):
+        if self.monitor:
+            self.monitor.stop()
+            logging.info("Stopped network monitoring")
+
+    @contextlib.contextmanager
+    def monitor_cm(self):
+        """
+        Context manager to monitor the connection and send SIGUSR2 to
+        openconnect process to attempt reconnecting.
+        """
+        self.start_monitor()
+        try:
+            yield
+        finally:
+            self.stop_monitor()
+
+    def reconnect(self):
+        popen = self.child
+        if popen:
+            logging.info("Sending SIGUSR2 to openconnect to reconnect...")
+            popen.send_signal(signal.SIGUSR2)
 
     def stop(self):
         if self.child:
@@ -312,6 +484,9 @@ class JuniperVPN:
                 self.child.wait()
             except OSError:
                 pass
+
+        self.stop_monitor()
+
 
 def main():
     parser = argparse.ArgumentParser(add_help=False)
@@ -328,6 +503,12 @@ def main():
                         help=argparse.SUPPRESS)
     parser.add_argument('-o', '--oath', type=str,
                         help='OATH key for two factor authentication (hex)')
+    parser.add_argument('--connect-timeout', type=float, default=10,
+                        help='Timeout to wait between two connection attempts')
+    parser.add_argument('--ping-host', type=str, action='append',
+                        help='Host to ping to monitor the connection. Can be repeated to provide fallbacks. Defaults to --host')
+    parser.add_argument('--ping-rate', type=float, default=1,
+                        help='Rate of network monitoring ping in packet/s. If 0, disable the network monitoring.')
     parser.add_argument('-c', '--config', type=str,
                         help='Config file, in INI style. All CLI options are also available as keys under a [vpn] section.')
     parser.add_argument('-s', '--stdin', type=str,
@@ -375,6 +556,10 @@ def main():
             action='shell_split',
             verbose='boolean',
             enable_funk='boolean',
+
+            ping_host='shell_split',
+            ping_rate='float',
+            connect_timeout='float',
         )
 
         # interpolation=None avoids interpolating things like %DSID%
@@ -413,6 +598,11 @@ def main():
     # ignored
     args.password = None
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+
+    # Default to trying the VPN server, followed by Google's DNS server as a
+    # fallback in case a proxy setup is used, potentially preventing pinging
+    # the VPN server name.
+    args.ping_host = args.ping_host or [args.host, '8.8.8.8']
 
     if args.action and args.action[0] == '--':
         args.action = args.action[1:]
