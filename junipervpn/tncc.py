@@ -573,7 +573,7 @@ class TNCCServer:
         self.tncc = t
 
     def process_cmd(self):
-        buf = sock.recv(1024).decode('ascii')
+        buf = self.sock.recv(1024).decode('ascii')
         if not buf:
             sys.exit(0)
         cmd, buf = buf.split('\n', 1)
@@ -587,7 +587,7 @@ class TNCCServer:
         if cmd == 'start':
             cookie = self.tncc.get_cookie(args['Cookie'], args['DSSIGNIN'])
             resp = '200\n3\n%s\n\n' % cookie.value
-            sock.send(resp.encode('ascii'))
+            self.sock.send(resp.encode('ascii'))
         elif cmd == 'setcookie':
             # FIXME: Support for periodic updates
             dsid_value = args['Cookie']
