@@ -16,7 +16,7 @@ import socket
 import urllib.request
 import urllib.error
 import urllib.parse
-import platform
+import platform as platform_py
 import json
 import datetime
 import xml.etree.ElementTree
@@ -599,7 +599,7 @@ def main():
 
     funk = 'TNCC_FUNK' in os.environ and os.environ['TNCC_FUNK'] != '0'
 
-    platform = os.environ.get('TNCC_PLATFORM', platform.system() + ' ' + platform.release())
+    platform = os.environ.get('TNCC_PLATFORM', platform_py.system() + ' ' + platform_py.release())
 
     if 'TNCC_HWADDR' in os.environ:
         mac_addrs = [n.strip() for n in os.environ['TNCC_HWADDR'].split(',')]
