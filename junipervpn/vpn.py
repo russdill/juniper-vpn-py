@@ -358,23 +358,38 @@ def main():
     # Load the conf file and use it as defaults, so it can be overridden by the
     # command line
     if args.config is not None:
-        config = configparser.RawConfigParser()
+        # Custom converters accessible as config.get<converter name>()
+        converters = dict(
+            shell_split=shlex.split,
+            str=str.lower,
+        )
+
+        # Use the same canonical key name as ArgumentParser.set_defaults()
+        def canonical_key(key):
+            return key.lower().replace('-', '_')
+
+        key_types = defaultdict(
+            # default
+            lambda: 'str',
+
+            action='shell_split',
+            verbose='boolean',
+            enable_funk='boolean',
+        )
+
+        # interpolation=None avoids interpolating things like %DSID%
+        config = configparser.ConfigParser(
+            interpolation=None,
+            converters=converters
+        )
+        config.optionxform = canonical_key
         config.read(args.config)
         vpn_config = config['vpn']
 
-        identity = lambda x: x
-        conf_handlers = defaultdict(
-            # default
-            lambda: (vpn_config.get, identity),
-
-            action=(vpn_config.get, shlex.split),
-            verbose=(vpn_config.getboolean, identity),
-            enable_funk=(vpn_config.getboolean, identity),
-        )
-
         def parse(arg):
-            from_conf, post_process = conf_handlers[arg]
-            return post_process(from_conf(arg))
+            getter = 'get{}'.format(key_types[arg])
+            getter = getattr(vpn_config, getter)
+            return getter(arg)
 
         parsed_conf = {
             arg: parse(arg)
