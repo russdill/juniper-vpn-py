@@ -321,8 +321,11 @@ def main():
                         help='VPN realm')
     parser.add_argument('-u', '--username', type=str,
                         help='User name')
-    parser.add_argument('--pass_prefix', type=str,
+    parser.add_argument('--pass-prefix', type=str,
                         help="Secondary password prefix")
+    # Old spelling for backward compatibility, but undocumented
+    parser.add_argument('--pass_prefix', type=str,
+                        help=argparse.SUPPRESS)
     parser.add_argument('-o', '--oath', type=str,
                         help='OATH key for two factor authentication (hex)')
     parser.add_argument('-c', '--config', type=str,
