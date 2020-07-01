@@ -12,7 +12,8 @@ $ source myvenv/bin/activate
 
 # Wheel might be needed to install pycurl
 $ python3 -m pip install wheel
-$ python3 -m pip install juniper-vpn-py
+$ git clone https://github.com/chrisdiamand/juniper-vpn-py.git
+$ python3 -m pip install ./juniper-vpn-py
 
 Once that venv activated, the "juniper-vpn.py" binary will be in the path.
 NOTE: DO NOT USE ./juniper-vpn.py shim distributed in the git repository, use
