@@ -24,7 +24,7 @@ Generating this token involves authentication and host checking. The
 juniper-vpn.py script performs authentication, and the tncc.py script
 performs host checking. The DSID token can then be passed to openconnect.
 
-Alternatively, openconnect can perform the authentication steps on it's own
+Alternatively, openconnect can perform the authentication steps on its own
 and utilize the tncc.py script for host checker functionality. This is
 the recommended mode of operation. Instructions for using openconnect to
 perform authentication and tncc.py to perform host checking are contained in:
