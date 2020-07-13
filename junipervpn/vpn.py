@@ -542,7 +542,7 @@ def main():
         # Custom converters accessible as config.get<converter name>()
         converters = dict(
             shell_split=shlex.split,
-            str=str.lower,
+            str=str,
         )
 
         # Use the same canonical key name as ArgumentParser.set_defaults()
