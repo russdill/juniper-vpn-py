@@ -1,9 +1,43 @@
+Installation using `pip`
+========================
+
+juniper-vpn can be installed in a Python virtual environment, which avoids
+conflicts with packages from the distribution's package manager:
+
+# pycurl needs some binaries to be provided by the system
+$ sudo apt install libcurl4-openssl-dev libssl-dev python-dev
+
+$ python3 -m venv myvenv
+$ source myvenv/bin/activate
+
+# Wheel might be needed to install pycurl
+$ python3 -m pip install wheel
+$ git clone https://github.com/chrisdiamand/juniper-vpn-py.git
+$ python3 -m pip install ./juniper-vpn-py
+
+Once that venv activated, the "juniper-vpn.py" binary will be in the path.
+NOTE: DO NOT USE ./juniper-vpn.py shim distributed in the git repository, use
+the shim created by pip in the standard location.
+
+Installation using the package manager
+======================================
+
+It can also be installed as a standalone script, with dependencies provided by
+your distribution's package manager:
+
+$ sudo apt install openconnect python3-mechanize python3-netifaces python3-pyasn1 python3-pyasn1-modules
+$ git clone https://github.com/chrisdiamand/juniper-vpn-py.git
+$ ./juniper-vpn-py/juniper-vpn.py ...
+
+About
+=====
+
 Connecting to a Juniper VPN requires the generation of a DSID token.
 Generating this token involves authentication and host checking. The
 juniper-vpn.py script performs authentication, and the tncc.py script
 performs host checking. The DSID token can then be passed to openconnect.
 
-Alternatively, openconnect can perform the authentication steps on it's own
+Alternatively, openconnect can perform the authentication steps on its own
 and utilize the tncc.py script for host checker functionality. This is
 the recommended mode of operation. Instructions for using openconnect to
 perform authentication and tncc.py to perform host checking are contained in:
