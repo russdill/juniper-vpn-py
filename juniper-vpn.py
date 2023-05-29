@@ -1,27 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import subprocess
-import mechanize
-import cookielib
-import getpass
-import sys
-import os
-import ssl
-import argparse
-import atexit
-import signal
-import ConfigParser
-import time
-import binascii
-import hmac
-import hashlib
-import shlex
-import tncc
-import platform
-import socket
-import netifaces
-import datetime
+import subprocess;import mechanize;import cookielib;import getpass;import sys;import os;import ssl;import argparse;import atexit;import signal;import ConfigParser;import time;import binascii;import hmac;import hashlib;import shlex;import tncc;import platform;import socket;import netifaces;import datetime
 
 debug = False
 
